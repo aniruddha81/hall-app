@@ -35,7 +35,7 @@ export function StatTile({ label, value, icon, accent, accentTint }: StatTilePro
       <ThemedText type="title" style={[styles.value, { color: colors.text }]}>
         {value}
       </ThemedText>
-      <ThemedText type="small" themeColor="textMuted" numberOfLines={1}>
+      <ThemedText type="small" themeColor="textMuted" numberOfLines={2} style={styles.label}>
         {label}
       </ThemedText>
     </View>
@@ -45,7 +45,9 @@ export function StatTile({ label, value, icon, accent, accentTint }: StatTilePro
 const styles = StyleSheet.create({
   tile: {
     flex: 1,
-    padding: 16,
+    minWidth: 0,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
     borderWidth: 1,
     gap: 4,
   },
@@ -59,5 +61,9 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 24,
     lineHeight: 28,
+  },
+  label: {
+    fontSize: 11,
+    lineHeight: 14,
   },
 });
