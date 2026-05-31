@@ -16,8 +16,13 @@ import {
   getStoredUser,
   saveUser,
 } from '@/lib/auth-storage';
+import { resolveRemoteImageUrl } from '@/lib/media';
 import { getMyProfile, logout as logoutApi, studentLogin } from '@/lib/services/auth.service';
 import type { StudentData } from '@/lib/types';
+
+function withNormalizedAvatar(user: StudentData): StudentData {
+  return { ...user, avatarUrl: resolveRemoteImageUrl(user.avatarUrl) };
+}
 
 type AuthContextValue = {
   user: StudentData | null;
@@ -36,9 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const setUser = useCallback((next: StudentData | null) => {
-    setUserState(next);
-    if (next) {
-      void saveUser(next);
+    const normalized = next ? withNormalizedAvatar(next) : null;
+    setUserState(normalized);
+    if (normalized) {
+      void saveUser(normalized);
     }
   }, []);
 
@@ -74,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!sessionId && !storedUser) return;
 
         if (storedUser) {
-          setUserState(storedUser);
+          setUserState(withNormalizedAvatar(storedUser));
         }
 
         const profileRes = await getMyProfile().catch(() => null);
