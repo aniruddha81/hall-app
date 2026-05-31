@@ -1,6 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
+  Animated,
   Pressable,
   StyleSheet,
   TextInput,
@@ -8,9 +9,7 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
-
-import { Radius, Spacing } from '@/constants/theme';
-import { useAppTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '@/theme';
 import { ThemedText } from '@/components/themed-text';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
@@ -33,41 +32,108 @@ export function Input({
   onBlur,
   ...rest
 }: InputProps) {
-  const { colors } = useAppTheme();
+  const { colors, radius, resolvedTheme } = useTheme();
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(!!secureTextEntry);
 
-  const borderColor = error ? colors.error : focused ? colors.primary : colors.border;
+  // Focus glow animation
+  const focusAnim = useRef(new Animated.Value(0)).current;
+
+  const handleFocus = (e: any) => {
+    setFocused(true);
+    Animated.timing(focusAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+    onFocus?.(e);
+  };
+
+  const handleBlur = (e: any) => {
+    setFocused(false);
+    Animated.timing(focusAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+    onBlur?.(e);
+  };
+
+  // Premium specs:
+  // - Dark: #0F1612 bg, border rgba(255,255,255,0.1), focus border #34D399
+  // - Light: #F9FAFB bg, border rgba(0,0,0,0.12), focus border #059669
+  // - Both: 52px height, 10px radius (radius.md is 10px)
+  const bg = resolvedTheme === 'dark' ? '#0F1612' : '#F9FAFB';
+  const defaultBorder = resolvedTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)';
+  const activeBorder = resolvedTheme === 'dark' ? '#34D399' : '#059669';
+
+  const borderColor = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [error ? colors.error : defaultBorder, error ? colors.error : activeBorder],
+  });
+
+  const leftBarWidth = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 3],
+  });
 
   return (
     <View style={[styles.container, containerStyle]}>
       {label ? (
-        <ThemedText type="smallBold" themeColor="textSecondary">
+        <ThemedText type="overline" style={styles.label}>
           {label}
         </ThemedText>
       ) : null}
-      <View
+      <Animated.View
         style={[
           styles.field,
-          { backgroundColor: colors.surface, borderColor, borderWidth: focused ? 1.5 : 1 },
+          {
+            backgroundColor: bg,
+            borderColor: borderColor,
+            borderWidth: 1,
+            borderRadius: radius.md, // 10px radius
+          },
         ]}>
-        {icon ? <MaterialIcons name={icon} size={20} color={colors.textMuted} /> : null}
+        {/* Left Focus Glow Accent Bar */}
+        <Animated.View
+          style={[
+            styles.focusIndicator,
+            {
+              width: leftBarWidth,
+              backgroundColor: activeBorder,
+              borderTopLeftRadius: radius.md,
+              borderBottomLeftRadius: radius.md,
+            },
+          ]}
+        />
+
+        {icon ? (
+          <MaterialIcons
+            name={icon}
+            size={20}
+            color={focused ? activeBorder : colors.textMuted}
+            style={styles.icon}
+          />
+        ) : null}
+        
         <TextInput
           placeholderTextColor={colors.textMuted}
           secureTextEntry={hidden}
-          style={[styles.input, { color: colors.text }, style]}
-          onFocus={(e) => {
-            setFocused(true);
-            onFocus?.(e);
-          }}
-          onBlur={(e) => {
-            setFocused(false);
-            onBlur?.(e);
-          }}
+          style={[
+            styles.input,
+            {
+              color: colors.text,
+              fontSize: 15,
+            },
+            style,
+          ]}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           {...rest}
         />
+        
         {secureTextEntry ? (
-          <Pressable onPress={() => setHidden((v) => !v)} hitSlop={8}>
+          <Pressable onPress={() => setHidden((v) => !v)} hitSlop={8} style={styles.eyeBtn}>
             <MaterialIcons
               name={hidden ? 'visibility-off' : 'visibility'}
               size={20}
@@ -75,9 +141,10 @@ export function Input({
             />
           </Pressable>
         ) : null}
-      </View>
+      </Animated.View>
+      
       {error ? (
-        <ThemedText type="small" style={{ color: colors.error }}>
+        <ThemedText type="small" style={[styles.error, { color: colors.error }]}>
           {error}
         </ThemedText>
       ) : null}
@@ -89,17 +156,38 @@ const styles = StyleSheet.create({
   container: {
     gap: 6,
   },
+  label: {
+    marginBottom: 2,
+  },
   field: {
-    minHeight: 52,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
+    height: 52, // Strict 52px height
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    paddingHorizontal: 16,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  focusIndicator: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+  },
+  icon: {
+    marginRight: 10,
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    paddingVertical: Spacing.sm,
+    height: '100%',
+    paddingVertical: 0, // Avoid system vertical paddings stretching height
+  },
+  eyeBtn: {
+    marginLeft: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  error: {
+    marginTop: 2,
+    fontWeight: '500',
   },
 });

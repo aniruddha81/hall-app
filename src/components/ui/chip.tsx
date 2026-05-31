@@ -1,7 +1,5 @@
 import { Pressable, StyleSheet } from 'react-native';
-
-import { Radius, Spacing } from '@/constants/theme';
-import { useAppTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '@/theme';
 import { ThemedText } from '@/components/themed-text';
 
 type ChipProps = {
@@ -12,23 +10,32 @@ type ChipProps = {
 };
 
 export function Chip({ label, selected, onPress, color }: ChipProps) {
-  const { colors } = useAppTheme();
-  const accent = color ?? colors.primary;
+  const { colors, radius, resolvedTheme } = useTheme();
+  
+  // Use primary accent or custom color
+  const accentColor = color ?? colors.primary;
 
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
       style={({ pressed }) => [
         styles.chip,
         {
-          backgroundColor: selected ? accent : colors.surfaceVariant,
-          borderColor: selected ? accent : colors.border,
-          opacity: pressed ? 0.85 : 1,
+          backgroundColor: selected
+            ? (resolvedTheme === 'dark' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(5, 150, 105, 0.12)')
+            : colors.surfaceGlass,
+          borderColor: selected ? accentColor : colors.border,
+          borderRadius: radius.full,
+          opacity: pressed ? 0.9 : 1,
         },
       ]}>
       <ThemedText
         type="smallBold"
-        style={{ color: selected ? colors.onPrimary : colors.textSecondary }}>
+        style={{
+          color: selected ? accentColor : colors.textSecondary,
+        }}>
         {label}
       </ThemedText>
     </Pressable>
@@ -38,8 +45,7 @@ export function Chip({ label, selected, onPress, color }: ChipProps) {
 const styles = StyleSheet.create({
   chip: {
     minHeight: 38,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Radius.full,
+    paddingHorizontal: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

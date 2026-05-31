@@ -1,14 +1,61 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { BlurView } from 'expo-blur';
-import { NavigationBar } from 'expo-navigation-bar';
 import { Tabs } from 'expo-router';
-import * as SystemUI from 'expo-system-ui';
-import { useEffect } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useAppTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '@/theme';
 
-function TabBarBackground({ resolvedTheme, tabBarColor }: { resolvedTheme: 'light' | 'dark'; tabBarColor: string }) {
+type TabIconName = React.ComponentProps<typeof MaterialIcons>['name'];
+
+function TabBarIcon({ name, focused, color }: { name: TabIconName; focused: boolean; color: any }) {
+  const { colors, radius } = useTheme();
+  
+  // Micro-interaction: spring bounce animation on focus
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (focused) {
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.18,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 4,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(1);
+    }
+  }, [focused]);
+
+  // Active pill opacity (12%)
+  const pillBg = focused
+    ? `${colors.primary}1f` // 12% in hex is approx 1f
+    : 'transparent';
+
+  return (
+    <Animated.View
+      style={[
+        styles.iconContainer,
+        {
+          backgroundColor: pillBg,
+          borderRadius: radius.full,
+          transform: [{ scale: scaleAnim }],
+        },
+      ]}>
+      <MaterialIcons name={name} size={22} color={color} />
+    </Animated.View>
+  );
+}
+
+function TabBarBackground({ resolvedTheme, colors }: { resolvedTheme: 'light' | 'dark'; colors: any }) {
   if (Platform.OS === 'ios') {
     return (
       <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
@@ -17,81 +64,87 @@ function TabBarBackground({ resolvedTheme, tabBarColor }: { resolvedTheme: 'ligh
           intensity={75}
           style={StyleSheet.absoluteFill}
         />
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: tabBarColor }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceGlass }]} />
       </View>
     );
   }
-
-  return <View style={[StyleSheet.absoluteFill, { backgroundColor: tabBarColor }]} />;
+  return <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.tabBar }]} />;
 }
 
 export default function TabLayout() {
-  const { colors, resolvedTheme } = useAppTheme();
-
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-
-    void SystemUI.setBackgroundColorAsync(colors.tabBar);
-
-    return () => {
-      void SystemUI.setBackgroundColorAsync(colors.background);
-    };
-  }, [colors.background, colors.tabBar]);
+  const { colors, resolvedTheme } = useTheme();
+  const insets = useSafeAreaInsets();
+  
+  // Custom height logic following 8pt grid
+  const bottomInset = Platform.OS === 'android' ? Math.max(insets.bottom, 12) : insets.bottom;
+  const tabBarHeight = 56 + bottomInset;
 
   return (
-    <>
-      {Platform.OS === 'android' ? <NavigationBar style={colors.navBar} hidden={false} /> : null}
-      <Tabs
+    <Tabs
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textSecondary,
+          tabBarInactiveTintColor: colors.tabBarInactive,
           tabBarStyle: {
+            backgroundColor: Platform.OS === 'ios' ? 'transparent' : colors.tabBar,
             borderTopColor: colors.tabBarBorder,
             borderTopWidth: StyleSheet.hairlineWidth,
             elevation: 0,
+            height: tabBarHeight,
+            paddingBottom: bottomInset,
+          },
+          tabBarItemStyle: {
+            height: 52,
+            paddingVertical: 4,
+          },
+          tabBarLabelStyle: {
+            fontSize: 10,
+            fontWeight: '700',
+            textTransform: 'uppercase',
+            letterSpacing: 0.8,
           },
           tabBarBackground: () => (
-            <TabBarBackground resolvedTheme={resolvedTheme} tabBarColor={colors.tabBar} />
+            <TabBarBackground resolvedTheme={resolvedTheme} colors={colors} />
           ),
-          tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: '600',
-          },
         }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <MaterialIcons name="home" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="dining"
-        options={{
-          title: 'Dining',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="restaurant" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="payments"
-        options={{
-          title: 'Pay',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="payments" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <MaterialIcons name="person" size={size} color={color} />,
-        }}
-      />
-      </Tabs>
-    </>
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name="home" focused={focused} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="dining"
+          options={{
+            title: 'Dining',
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name="restaurant" focused={focused} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="payments"
+          options={{
+            title: 'Pay',
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name="payments" focused={focused} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name="person" focused={focused} color={color} />,
+          }}
+        />
+    </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 54,
+  },
+});

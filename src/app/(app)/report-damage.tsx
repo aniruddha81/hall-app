@@ -7,16 +7,16 @@ import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { IconBadge } from '@/components/ui/icon-badge';
 import { Input } from '@/components/ui/input';
 import { SectionHeader } from '@/components/ui/section-header';
-import { Radius, Spacing } from '@/constants/theme';
-import { useAppTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '@/theme';
 import { getApiErrorMessage } from '@/lib/api';
 import { reportDamage } from '@/lib/services/student.service';
 
 export default function ReportDamageScreen() {
-  const { colors } = useAppTheme();
+  const { colors, spacing, radius } = useTheme();
   const [locationDescription, setLocationDescription] = useState('');
   const [assetDetails, setAssetDetails] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -30,14 +30,14 @@ export default function ReportDamageScreen() {
 
   const handleSubmit = async () => {
     if (!imageUri) {
-      setError('Photo is required');
+      setError('Photo attachment is required.');
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
       await reportDamage({ locationDescription, assetDetails, imageUri });
-      Alert.alert('Submitted', 'Damage report submitted successfully');
+      Alert.alert('Success', 'Your inventory damage report has been submitted successfully.');
       setLocationDescription('');
       setAssetDetails('');
       setImageUri(null);
@@ -49,59 +49,79 @@ export default function ReportDamageScreen() {
   };
 
   return (
-    <Screen title="Report damage" subtitle="Submit an inventory complaint" withBackButton>
-      <View style={[styles.banner, { backgroundColor: colors.accentDamageTint }]}>
-        <IconBadge name="report-problem" color={colors.accentDamage} background="transparent" size={36} />
-        <ThemedText type="small" style={{ flex: 1, color: colors.text }}>
-          Help us fix it faster — add a clear photo and location.
+    <Screen title="Report Damage" subtitle="Submit an inventory complaint" withBackButton>
+      <Card style={[styles.banner, { backgroundColor: `${colors.error}0D`, borderColor: colors.error, borderWidth: 1 }]}>
+        <IconBadge name="report-problem" color={colors.error} background="transparent" size={32} />
+        <ThemedText type="small" style={{ flex: 1, color: colors.textSecondary }}>
+          Help us identify and repair damages faster — attach a clear photo and precise location.
         </ThemedText>
-      </View>
+      </Card>
 
       {error ? (
-        <ThemedText type="small" style={{ color: colors.error }}>
-          {error}
-        </ThemedText>
+        <View style={[styles.errorBox, { backgroundColor: `${colors.error}14`, borderColor: `${colors.error}30` }]}>
+          <ThemedText type="small" style={{ color: colors.error }}>
+            {error}
+          </ThemedText>
+        </View>
       ) : null}
 
-      <SectionHeader title="Details" />
-      <View style={styles.form}>
+      <SectionHeader title="Complaint Details" />
+      <View style={[styles.form, { gap: spacing.md }]}>
         <Input
           label="Location"
           icon="place"
-          placeholder="Room 201, corridor near dining..."
+          placeholder="e.g. Room 204, East Wing corridor..."
           value={locationDescription}
           onChangeText={setLocationDescription}
         />
         <Input
-          label="Asset details"
+          label="Asset Details"
           icon="chair"
-          placeholder="Broken chair, damaged window..."
+          placeholder="e.g. Broken reading table, leaking water tap..."
           value={assetDetails}
           onChangeText={setAssetDetails}
           multiline
+          style={styles.multilineInput}
         />
       </View>
 
-      <SectionHeader title="Photo" />
+      <SectionHeader title="Photo Attachment" />
       <Pressable
         onPress={pickImage}
-        style={[styles.upload, { borderColor: imageUri ? colors.accentDamage : colors.border, backgroundColor: colors.surface }]}>
+        accessibilityRole="button"
+        style={[
+          styles.upload,
+          {
+            borderColor: imageUri ? colors.primary : colors.border,
+            backgroundColor: colors.surfaceGlass,
+            borderRadius: radius.xl,
+          },
+        ]}>
         {imageUri ? (
-          <Image source={{ uri: imageUri }} style={styles.preview} contentFit="cover" />
+          <View style={styles.previewContainer}>
+            <Image source={{ uri: imageUri }} style={[styles.preview, { borderRadius: radius.xl }]} contentFit="cover" />
+            <View style={styles.previewOverlay}>
+              <IconBadge name="check-circle" color="#FFFFFF" background="rgba(0,0,0,0.4)" size={36} />
+            </View>
+          </View>
         ) : (
-          <>
-            <MaterialIcons name="add-a-photo" size={28} color={colors.textMuted} />
-            <ThemedText type="small" themeColor="textMuted">
-              Tap to attach a photo
+          <View style={styles.uploadPlaceholder}>
+            <MaterialIcons name="add-a-photo" size={26} color={colors.textMuted} />
+            <ThemedText type="smallBold" style={{ color: colors.text }}>
+              Tap to Attach Photo
             </ThemedText>
-          </>
+            <ThemedText type="small" themeColor="textMuted">
+              Support formats: PNG, JPG, JPEG
+            </ThemedText>
+          </View>
         )}
       </Pressable>
+      
       {imageUri ? (
-        <Button title="Change photo" variant="ghost" size="sm" onPress={pickImage} />
+        <Button title="Choose Different Photo" variant="ghost" size="sm" onPress={pickImage} style={styles.changeBtn} />
       ) : null}
 
-      <Button title="Submit report" loading={submitting} onPress={handleSubmit} />
+      <Button title="Submit Damage Report" loading={submitting} onPress={handleSubmit} style={styles.submit} />
     </Screen>
   );
 }
@@ -110,23 +130,54 @@ const styles = StyleSheet.create({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    padding: Spacing.sm + 2,
-    borderRadius: Radius.lg,
+    gap: 12,
+    padding: 14,
   },
-  form: { gap: Spacing.sm },
+  form: {
+    marginBottom: 8,
+  },
+  multilineInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+    paddingTop: 12,
+  },
   upload: {
     minHeight: 160,
-    borderRadius: Radius.lg,
     borderWidth: 1.5,
     borderStyle: 'dashed',
+    overflow: 'hidden',
+  },
+  uploadPlaceholder: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    overflow: 'hidden',
+    padding: 24,
+    gap: 6,
+  },
+  previewContainer: {
+    width: '100%',
+    height: 180,
+    position: 'relative',
   },
   preview: {
     width: '100%',
-    height: 200,
+    height: '100%',
+  },
+  previewOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  changeBtn: {
+    marginTop: 4,
+  },
+  submit: {
+    marginTop: 16,
+  },
+  errorBox: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
   },
 });

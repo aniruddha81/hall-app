@@ -1,7 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-
-import { Spacing } from '@/constants/theme';
-import { useAppTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '@/theme';
 import { ThemedText } from '@/components/themed-text';
 
 type SectionHeaderProps = {
@@ -12,22 +10,24 @@ type SectionHeaderProps = {
 };
 
 export function SectionHeader({ title, caption, actionLabel, onActionPress }: SectionHeaderProps) {
-  const { colors } = useAppTheme();
+  const { colors, spacing } = useTheme();
+
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, { marginTop: spacing.xs }]}>
       <View style={styles.titleWrap}>
+        {/* Left vertical accent indicator */}
         <View style={[styles.accent, { backgroundColor: colors.primary }]} />
-        <View>
+        <View style={styles.textContainer}>
           <ThemedText type="subtitle">{title}</ThemedText>
           {caption ? (
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="small" themeColor="textMuted">
               {caption}
             </ThemedText>
           ) : null}
         </View>
       </View>
       {actionLabel && onActionPress ? (
-        <Pressable onPress={onActionPress} hitSlop={8}>
+        <Pressable onPress={onActionPress} hitSlop={12} accessibilityRole="button">
           <ThemedText type="smallBold" style={{ color: colors.primary }}>
             {actionLabel}
           </ThemedText>
@@ -42,16 +42,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: Spacing.xs,
+    paddingVertical: 4,
   },
   titleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: 8,
+    flex: 1,
   },
   accent: {
-    width: 4,
-    height: 22,
-    borderRadius: 2,
+    width: 3.5,
+    height: 18,
+    borderRadius: 99,
+  },
+  textContainer: {
+    flex: 1,
   },
 });

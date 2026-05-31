@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View, type ViewProps } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StatusBar, StyleSheet, View, type ViewProps } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -41,16 +41,17 @@ export function Screen({
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const { colors, resolvedTheme } = useAppTheme();
-  const { setOverride, override } = useStatusBarOverride();
+  const { setOverride } = useStatusBarOverride();
   const useImmersiveHeader = immersiveHeader ?? Boolean(header);
-  const edgeToEdge = override?.translucent ?? false;
 
-  /** Avoid double top inset when Android status bar is opaque (content already starts below it). */
-  const topPadding = header
-    ? Spacing.md
-    : Platform.OS === 'android' && !edgeToEdge
-      ? Spacing.sm
-      : insets.top + Spacing.sm;
+  /** Transparent Android status bar draws content edge-to-edge; always respect top inset. */
+  const topInset =
+    insets.top > 0
+      ? insets.top
+      : Platform.OS === 'android'
+        ? (StatusBar.currentHeight ?? 0)
+        : 0;
+  const topPadding = header ? Spacing.md : topInset + Spacing.sm;
 
   useFocusEffect(
     useCallback(() => {
@@ -75,7 +76,7 @@ export function Screen({
             <View style={styles.titleRow}>
               <Pressable
                 onPress={() => router.back()}
-                style={[styles.backButton, { backgroundColor: colors.surfaceVariant }]}
+                style={[styles.backButton, { backgroundColor: colors.border }]}
                 hitSlop={6}>
                 <MaterialIcons name="arrow-back" size={20} color={colors.text} />
               </Pressable>

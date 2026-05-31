@@ -1,3 +1,5 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
@@ -10,21 +12,56 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ListRow } from '@/components/ui/list-row';
 import { SectionHeader } from '@/components/ui/section-header';
-import { Radius, Spacing } from '@/constants/theme';
+import { useTheme } from '@/theme';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import { getApiErrorMessage } from '@/lib/api';
-import { changePassword, updateProfile } from '@/lib/services/auth.service';
+import { changePassword, updateProfile, uploadAvatar } from '@/lib/services/auth.service';
 
 export default function ProfileScreen() {
-  const { user, logout, refreshProfile } = useAuth();
-  const { colors } = useAppTheme();
+  const { user, logout, refreshProfile, setUser } = useAuth();
+  const { colors, spacing, radius } = useTheme();
   const [name, setName] = useState(user?.name ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const pickAndUploadAvatar = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        'Permission required',
+        'Allow photo library access to change your profile picture.',
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (result.canceled || !result.assets[0]) return;
+
+    setUploadingAvatar(true);
+    setError(null);
+    try {
+      const res = await uploadAvatar(result.assets[0].uri);
+      if (user) {
+        setUser({ ...user, avatarUrl: res.data.avatarUrl });
+      } else {
+        await refreshProfile();
+      }
+      Alert.alert('Saved', 'Profile picture updated successfully');
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const saveProfile = async () => {
     setSaving(true);
@@ -32,7 +69,7 @@ export default function ProfileScreen() {
     try {
       await updateProfile({ name: name.trim(), phone: phone.trim() });
       await refreshProfile();
-      Alert.alert('Saved', 'Profile updated');
+      Alert.alert('Saved', 'Profile updated successfully');
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -47,7 +84,7 @@ export default function ProfileScreen() {
       await changePassword({ currentPassword, newPassword });
       setCurrentPassword('');
       setNewPassword('');
-      Alert.alert('Saved', 'Password changed');
+      Alert.alert('Saved', 'Security password changed successfully');
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -64,7 +101,20 @@ export default function ProfileScreen() {
   const header = (
     <GradientHeader extraBottom={28}>
       <View style={styles.identity}>
-        <Avatar name={user?.name} size={64} />
+        <View style={styles.avatarWrap}>
+          <Avatar
+            name={user?.name}
+            uri={user?.avatarUrl}
+            size={60}
+            uploading={uploadingAvatar}
+            onPress={pickAndUploadAvatar}
+          />
+          {!uploadingAvatar ? (
+            <View style={[styles.cameraBadge, { borderRadius: radius.full, backgroundColor: colors.surface }]}>
+              <MaterialIcons name="photo-camera" size={14} color={colors.primary} />
+            </View>
+          ) : null}
+        </View>
         <View style={{ flex: 1 }}>
           <ThemedText type="subtitle" style={styles.name} numberOfLines={1}>
             {user?.name ?? 'Student'}
@@ -76,7 +126,7 @@ export default function ProfileScreen() {
       </View>
       <View style={styles.chipsRow}>
         {metaChips.map((c) => (
-          <View key={c} style={styles.metaChip}>
+          <View key={c} style={[styles.metaChip, { borderRadius: radius.full }]}>
             <ThemedText type="small" style={styles.metaChipText}>
               {c}
             </ThemedText>
@@ -89,58 +139,86 @@ export default function ProfileScreen() {
   return (
     <Screen header={header} overlap={20}>
       {error ? (
-        <ThemedText type="small" style={{ color: colors.error }}>
-          {error}
-        </ThemedText>
+        <View style={[styles.errorBox, { backgroundColor: `${colors.error}14`, borderColor: `${colors.error}30` }]}>
+          <ThemedText type="small" style={{ color: colors.error }}>
+            {error}
+          </ThemedText>
+        </View>
       ) : null}
 
-      <SectionHeader title="Personal details" />
-      <View style={styles.formGroup}>
+      <SectionHeader title="Personal Details" />
+      <View style={[styles.formGroup, { gap: spacing.md }]}>
         <Input label="Name" icon="person" value={name} onChangeText={setName} />
         <Input label="Phone" icon="call" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-        <Button title="Save profile" loading={saving} onPress={saveProfile} />
+        <Button title="Save Personal Details" loading={saving} onPress={saveProfile} style={styles.btn} />
       </View>
 
-      <SectionHeader title="Security" />
-      <View style={styles.formGroup}>
-        <Input label="Current password" icon="lock" secureTextEntry value={currentPassword} onChangeText={setCurrentPassword} />
-        <Input label="New password" icon="lock-reset" secureTextEntry value={newPassword} onChangeText={setNewPassword} />
-        <Button title="Update password" variant="outline" loading={saving} onPress={savePassword} />
+      <SectionHeader title="Security & Login" />
+      <View style={[styles.formGroup, { gap: spacing.md }]}>
+        <Input label="Current Password" icon="lock" secureTextEntry value={currentPassword} onChangeText={setCurrentPassword} placeholder="Enter active password" />
+        <Input label="New Password" icon="lock-reset" secureTextEntry value={newPassword} onChangeText={setNewPassword} placeholder="Enter new password" />
+        <Button title="Update Password" variant="secondary" loading={saving} onPress={savePassword} style={styles.btn} />
       </View>
 
-      <SectionHeader title="More" />
-      <ListRow
-        icon="tune"
-        accent={colors.accentSettings}
-        accentTint={colors.accentSettingsTint}
-        title="Settings & theme"
-        subtitle="System, light, dark and sessions"
-        showChevron
-        onPress={() => router.push('/(app)/settings')}
-      />
-      <ListRow
-        icon="logout"
-        accent={colors.error}
-        accentTint={colors.errorContainer}
-        title="Sign out"
-        subtitle="End this session"
-        onPress={logout}
-      />
+      <SectionHeader title="Preferences & Account" />
+      <View style={[styles.menuPanel, { gap: spacing.xs }]}>
+        <ListRow
+          icon="tune"
+          accent={colors.secondary}
+          title="Settings & Appearance"
+          subtitle="System, light, dark, and session management"
+          showChevron
+          onPress={() => router.push('/(app)/settings')}
+        />
+        <ListRow
+          icon="logout"
+          accent={colors.error}
+          title="Sign Out"
+          subtitle="Sign out from this mobile device"
+          onPress={logout}
+        />
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  identity: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  name: { color: '#FFFFFF' },
-  email: { color: 'rgba(255,255,255,0.8)' },
-  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatarWrap: {
+    position: 'relative',
+  },
+  cameraBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  name: { color: '#FFFFFF', marginTop: -2 },
+  email: { color: 'rgba(255,255,255,0.75)' },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   metaChip: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
-  metaChipText: { color: '#FFFFFF', fontWeight: '600' },
-  formGroup: { gap: Spacing.sm },
+  metaChipText: { color: '#FFFFFF', fontWeight: '600', fontSize: 11.5 },
+  formGroup: {
+    marginBottom: 8,
+  },
+  btn: {
+    marginTop: 4,
+  },
+  menuPanel: {},
+  errorBox: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
 });

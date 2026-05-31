@@ -1,19 +1,17 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   ActivityIndicator,
+  Animated,
   Pressable,
   StyleSheet,
   Text,
-  View,
   type PressableProps,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import { useRef } from 'react';
+import { useTheme } from '@/theme';
 
-import { Radius, Spacing, gradientStops } from '@/constants/theme';
-import { useAppTheme } from '@/contexts/ThemeContext';
-
-type ButtonProps = PressableProps & {
+type ButtonProps = Omit<PressableProps, 'style'> & {
   title: string;
   variant?: 'primary' | 'secondary' | 'outline' | 'destructive' | 'ghost';
   size?: 'md' | 'sm';
@@ -32,79 +30,112 @@ export function Button({
   textStyle,
   ...rest
 }: ButtonProps) {
-  const { colors } = useAppTheme();
+  const { colors, radius, resolvedTheme } = useTheme();
   const isDisabled = disabled || loading;
 
-  const sizeStyle = size === 'sm' ? styles.sm : styles.md;
-  const fontSize = size === 'sm' ? 14 : 16;
+  // Premium press scale animation (150ms ease/spring style)
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const textColor =
-    variant === 'primary' || variant === 'destructive'
-      ? colors.onPrimary
-      : variant === 'outline'
-        ? colors.primary
-        : variant === 'ghost'
-          ? colors.primary
-          : colors.text;
+  const handlePressIn = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 0.97,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const sizeStyle = size === 'sm' ? styles.sm : styles.md;
+  const fontSize = size === 'sm' ? 13 : 15;
+
+  // Resolve backgrounds, borders, and text colors
+  let bg = 'transparent';
+  let borderCol = 'transparent';
+  let borderWidth = 0;
+  let textColor: string = colors.text;
+
+  if (variant === 'primary') {
+    bg = resolvedTheme === 'dark' ? '#34D399' : '#059669';
+    textColor = resolvedTheme === 'dark' ? '#052E16' : '#FFFFFF';
+  } else if (variant === 'secondary') {
+    bg = 'transparent';
+    borderCol = colors.borderAccent;
+    borderWidth = 1;
+    textColor = colors.primary;
+  } else if (variant === 'outline') {
+    bg = 'transparent';
+    borderCol = colors.border;
+    borderWidth = 1.5;
+    textColor = colors.text;
+  } else if (variant === 'destructive') {
+    bg = colors.error;
+    textColor = '#FFFFFF';
+  } else if (variant === 'ghost') {
+    bg = 'transparent';
+    textColor = colors.primary;
+  }
 
   const inner = loading ? (
     <ActivityIndicator size="small" color={textColor} />
   ) : (
-    <Text style={[styles.label, { color: textColor, fontSize }, textStyle]}>{title}</Text>
+    <Text
+      style={[
+        styles.label,
+        {
+          color: textColor,
+          fontSize,
+          fontWeight: '600',
+        },
+        textStyle,
+      ]}>
+      {title}
+    </Text>
   );
-
-  if (variant === 'primary') {
-    return (
-      <Pressable accessibilityRole="button" disabled={isDisabled} style={style} {...rest}>
-        {({ pressed }) => (
-          <LinearGradient
-            colors={gradientStops(colors)}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.base, sizeStyle, { opacity: pressed || isDisabled ? 0.75 : 1 }]}>
-            {inner}
-          </LinearGradient>
-        )}
-      </Pressable>
-    );
-  }
-
-  const bg =
-    variant === 'destructive'
-      ? colors.error
-      : variant === 'secondary'
-        ? colors.surfaceVariant
-        : 'transparent';
-  const borderColor = variant === 'outline' ? colors.primary : 'transparent';
 
   return (
     <Pressable
       accessibilityRole="button"
       disabled={isDisabled}
-      style={({ pressed }) => [
-        styles.base,
-        sizeStyle,
-        { backgroundColor: bg, borderColor, borderWidth: variant === 'outline' ? 1.5 : 0 },
-        { opacity: pressed || isDisabled ? 0.7 : 1 },
-        style,
-      ]}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      android_ripple={{ color: colors.ripple }}
       {...rest}>
-      <View style={styles.center}>{inner}</View>
+      <Animated.View
+        style={[
+          styles.base,
+          sizeStyle,
+          {
+            backgroundColor: bg,
+            borderColor: borderCol,
+            borderWidth: borderWidth,
+            borderRadius: radius.lg, // 12px radius
+            transform: [{ scale: scaleAnim }],
+            opacity: isDisabled ? 0.5 : 1,
+          },
+          style,
+        ]}>
+        {inner}
+      </Animated.View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: Radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: 16,
   },
-  md: { minHeight: 52 },
-  sm: { minHeight: 40, paddingHorizontal: Spacing.sm },
-  center: { alignItems: 'center', justifyContent: 'center' },
+  md: { height: 50 },
+  sm: { height: 40, paddingHorizontal: 12 },
   label: {
-    fontWeight: '700',
+    letterSpacing: -0.2,
   },
 });

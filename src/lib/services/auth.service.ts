@@ -1,4 +1,5 @@
 import { apiRequest, persistSessionFromResponse } from '@/lib/api';
+import { appendImageToFormData } from '@/lib/multipart';
 import type {
   AcademicDepartment,
   AcademicSession,
@@ -77,7 +78,10 @@ export async function changePassword(data: {
   return res;
 }
 
-export async function uploadAvatar(formData: FormData) {
+export async function uploadAvatar(imageUri: string) {
+  const formData = new FormData();
+  appendImageToFormData(formData, 'avatar', imageUri);
+
   const { data: res } = await apiRequest<{ avatarUrl: string }>('/profile/upload-image', {
     method: 'POST',
     formData,

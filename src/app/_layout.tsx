@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider as RouterThemeProvider } 
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { SystemChrome } from '@/components/system-chrome';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -52,7 +52,7 @@ function RootSurface({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000000' }}>
-      <SafeAreaProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <KeyboardProvider>
           <ThemeProvider>
             <StatusBarProvider>

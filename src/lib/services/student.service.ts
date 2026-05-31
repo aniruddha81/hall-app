@@ -1,4 +1,5 @@
 import { apiRequest } from '@/lib/api';
+import { appendImageToFormData } from '@/lib/multipart';
 import type {
   AcademicDepartment,
   FinancePaymentMethod,
@@ -79,11 +80,7 @@ export async function payMyDue(
     }
     const formData = new FormData();
     formData.append('method', data.method);
-    formData.append('receiptImage', {
-      uri: data.receiptUri,
-      name: 'receipt.jpg',
-      type: 'image/jpeg',
-    } as unknown as Blob);
+    appendImageToFormData(formData, 'receiptImage', data.receiptUri);
 
     const { data: res } = await apiRequest(`/finance/my-dues/pay/${dueId}`, {
       method: 'POST',
@@ -119,11 +116,7 @@ export async function reportDamage(data: {
   const formData = new FormData();
   formData.append('locationDescription', data.locationDescription);
   formData.append('assetDetails', data.assetDetails);
-  formData.append('image', {
-    uri: data.imageUri,
-    name: 'damage.jpg',
-    type: 'image/jpeg',
-  } as unknown as Blob);
+  appendImageToFormData(formData, 'image', data.imageUri);
 
   const { data: res } = await apiRequest('/inventory/damage', {
     method: 'POST',

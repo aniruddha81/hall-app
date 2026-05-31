@@ -54,7 +54,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow RUET Hall to access photos for receipts and damage reports."
+          "photosPermission": "Allow RUET Hall to access photos for your profile, receipts, and damage reports."
         }
       ]
     ],

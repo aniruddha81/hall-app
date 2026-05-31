@@ -1,9 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { Platform, StatusBar, StyleSheet, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Radius, Spacing, gradientStops } from '@/constants/theme';
-import { useAppTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '@/theme';
 
 type GradientHeaderProps = {
   children: React.ReactNode;
@@ -12,21 +11,33 @@ type GradientHeaderProps = {
   style?: ViewStyle;
 };
 
-/** Full-bleed gradient banner that sits under the status bar with a rounded base. */
+/** Full-bleed premium green gradient banner that sits under status bar with a modern curved bottom. */
 export function GradientHeader({ children, extraBottom = 0, style }: GradientHeaderProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, spacing, radius } = useTheme();
+  
+  const topInset =
+    insets.top > 0
+      ? insets.top
+      : Platform.OS === 'android'
+        ? (StatusBar.currentHeight ?? 0)
+        : 0;
+
+  // Modern high-end green color flow
+  const gradientColors = [colors.secondary, colors.primary, colors.tertiary] as const;
 
   return (
     <LinearGradient
-      colors={gradientStops(colors)}
+      colors={gradientColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={[
         styles.header,
         {
-          paddingTop: insets.top + Spacing.md,
-          paddingBottom: Spacing.lg + extraBottom,
+          paddingTop: topInset + spacing.md,
+          paddingBottom: spacing.lg + extraBottom,
+          borderBottomLeftRadius: radius.xxl,
+          borderBottomRightRadius: radius.xxl,
         },
         style,
       ]}>
@@ -37,11 +48,10 @@ export function GradientHeader({ children, extraBottom = 0, style }: GradientHea
 
 const styles = StyleSheet.create({
   header: {
-    paddingHorizontal: Spacing.md,
-    borderBottomLeftRadius: Radius.xl + 6,
-    borderBottomRightRadius: Radius.xl + 6,
+    paddingHorizontal: 16,
+    overflow: 'hidden',
   },
   inner: {
-    gap: Spacing.md,
+    gap: 16,
   },
 });

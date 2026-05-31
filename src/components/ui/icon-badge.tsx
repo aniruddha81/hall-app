@@ -1,5 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { useTheme } from '@/theme';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
@@ -22,6 +23,8 @@ export function IconBadge({
   rounded = false,
   style,
 }: IconBadgeProps) {
+  const { radius } = useTheme();
+
   return (
     <View
       style={[
@@ -29,7 +32,7 @@ export function IconBadge({
         {
           width: size,
           height: size,
-          borderRadius: rounded ? size / 2 : size * 0.32,
+          borderRadius: rounded ? size / 2 : radius.md,
           backgroundColor: background,
         },
         style,

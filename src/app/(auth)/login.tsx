@@ -8,14 +8,13 @@ import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Radius, Spacing, gradientStops } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAppTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '@/theme';
 import { getApiErrorMessage } from '@/lib/api';
 
 export default function LoginScreen() {
   const { login, isAuthenticated, isLoading: authLoading } = useAuth();
-  const { colors } = useAppTheme();
+  const { colors, spacing, radius } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -36,33 +35,35 @@ export default function LoginScreen() {
     }
   };
 
+  const gradientColors = [colors.primary, colors.secondary, colors.tertiary] as const;
+
   return (
     <Screen>
-      <View style={styles.hero}>
+      <View style={[styles.hero, { paddingTop: spacing.giant, paddingBottom: spacing.lg }]}>
         <LinearGradient
-          colors={gradientStops(colors)}
+          colors={gradientColors}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.badge}>
-          <MaterialIcons name="school" size={36} color="#FFFFFF" />
+          style={[styles.badge, { borderRadius: radius.xl + 6 }]}>
+          <MaterialIcons name="school" size={32} color="#FFFFFF" />
         </LinearGradient>
         <ThemedText type="title" style={styles.heroTitle}>
           Welcome back
         </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.heroSub}>
+        <ThemedText type="small" themeColor="textMuted" style={styles.heroSub}>
           Sign in to your RUET hall student portal
         </ThemedText>
       </View>
 
       {error ? (
-        <View style={[styles.errorBox, { backgroundColor: colors.errorContainer }]}>
+        <View style={[styles.errorBox, { backgroundColor: `${colors.error}14`, borderColor: `${colors.error}40` }]}>
           <ThemedText type="small" style={{ color: colors.error }}>
             {error}
           </ThemedText>
         </View>
       ) : null}
 
-      <View style={styles.form}>
+      <View style={[styles.form, { gap: spacing.md }]}>
         <Input
           label="Email"
           icon="mail"
@@ -82,10 +83,10 @@ export default function LoginScreen() {
           onChangeText={setPassword}
           placeholder="Enter password"
         />
-        <Button title="Sign in" loading={loading} onPress={handleLogin} />
+        <Button title="Sign in" loading={loading} onPress={handleLogin} style={styles.submit} />
       </View>
 
-      <ThemedText type="small" themeColor="textSecondary" style={styles.footer}>
+      <ThemedText type="small" themeColor="textMuted" style={[styles.footer, { marginTop: spacing.lg }]}>
         Don&apos;t have an account?{' '}
         <Link href="/signup">
           <ThemedText type="link" themeColor="primary">
@@ -101,20 +102,25 @@ const styles = StyleSheet.create({
   hero: {
     alignItems: 'center',
     gap: 6,
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing.md,
   },
   badge: {
-    width: 76,
-    height: 76,
-    borderRadius: 24,
+    width: 64,
+    height: 64,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
+    marginBottom: 12,
   },
   heroTitle: { textAlign: 'center' },
   heroSub: { textAlign: 'center' },
-  errorBox: { padding: Spacing.md, borderRadius: Radius.md },
-  form: { gap: Spacing.sm },
-  footer: { textAlign: 'center', marginTop: Spacing.sm },
+  errorBox: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  form: {},
+  submit: {
+    marginTop: 8,
+  },
+  footer: { textAlign: 'center' },
 });

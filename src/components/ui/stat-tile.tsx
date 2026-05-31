@@ -1,8 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { StyleSheet, View } from 'react-native';
-
-import { Radius, Spacing } from '@/constants/theme';
-import { useAppTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '@/theme';
 import { ThemedText } from '@/components/themed-text';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
@@ -16,16 +14,28 @@ type StatTileProps = {
 };
 
 export function StatTile({ label, value, icon, accent, accentTint }: StatTileProps) {
-  const { colors } = useAppTheme();
+  const { colors, radius, resolvedTheme } = useTheme();
+
+  const bg = resolvedTheme === 'dark' ? '#161F1B' : '#FFFFFF';
+  const borderCol = resolvedTheme === 'dark' ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.08)';
+
   return (
-    <View style={[styles.tile, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={[styles.iconWrap, { backgroundColor: accentTint }]}>
-        <MaterialIcons name={icon} size={20} color={accent} />
+    <View
+      style={[
+        styles.tile,
+        {
+          backgroundColor: bg,
+          borderColor: borderCol,
+          borderRadius: radius.xl, // 16px radius
+        },
+      ]}>
+      <View style={[styles.iconWrap, { backgroundColor: accentTint, borderRadius: radius.sm + 2 }]}>
+        <MaterialIcons name={icon} size={18} color={accent} />
       </View>
-      <ThemedText type="title" style={styles.value}>
+      <ThemedText type="title" style={[styles.value, { color: colors.text }]}>
         {value}
       </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+      <ThemedText type="small" themeColor="textMuted" numberOfLines={1}>
         {label}
       </ThemedText>
     </View>
@@ -35,18 +45,16 @@ export function StatTile({ label, value, icon, accent, accentTint }: StatTilePro
 const styles = StyleSheet.create({
   tile: {
     flex: 1,
-    borderRadius: Radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.md,
-    gap: 6,
+    padding: 16,
+    borderWidth: 1,
+    gap: 4,
   },
   iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   value: {
     fontSize: 24,

@@ -1,8 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Pressable, StyleSheet, View } from 'react-native';
-
-import { Radius, Spacing } from '@/constants/theme';
-import { useAppTheme } from '@/contexts/ThemeContext';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { useRef } from 'react';
+import { useTheme } from '@/theme';
 import { ThemedText } from '@/components/themed-text';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
@@ -17,48 +16,80 @@ type FeatureTileProps = {
 };
 
 export function FeatureTile({ icon, label, caption, accent, accentTint, onPress }: FeatureTileProps) {
-  const { colors } = useAppTheme();
+  const { colors, radius, resolvedTheme } = useTheme();
+
+  // Premium press scale animation
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 0.97,
+      duration: 120,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 1,
+      duration: 120,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const bg = resolvedTheme === 'dark' ? '#161F1B' : '#FFFFFF';
+  const borderCol = resolvedTheme === 'dark' ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.08)';
+
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.tile,
-        {
-          backgroundColor: colors.surface,
-          borderColor: colors.border,
-          opacity: pressed ? 0.88 : 1,
-        },
-      ]}>
-      <View style={[styles.iconWrap, { backgroundColor: accentTint }]}>
-        <MaterialIcons name={icon} size={24} color={accent} />
-      </View>
-      <ThemedText type="smallBold" numberOfLines={1}>
-        {label}
-      </ThemedText>
-      {caption ? (
-        <ThemedText type="small" themeColor="textMuted" numberOfLines={1}>
-          {caption}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      android_ripple={{ color: colors.ripple }}
+      style={styles.pressable}
+      accessibilityRole="button">
+      <Animated.View
+        style={[
+          styles.tile,
+          {
+            backgroundColor: bg,
+            borderColor: borderCol,
+            borderRadius: radius.xl, // 16px radius
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}>
+        <View style={[styles.iconWrap, { backgroundColor: accentTint, borderRadius: radius.sm + 2 }]}>
+          <MaterialIcons name={icon} size={22} color={accent} />
+        </View>
+        <ThemedText type="smallBold" numberOfLines={1} style={{ color: colors.text }}>
+          {label}
         </ThemedText>
-      ) : null}
+        {caption ? (
+          <ThemedText type="small" themeColor="textMuted" numberOfLines={1}>
+            {caption}
+          </ThemedText>
+        ) : null}
+      </Animated.View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  tile: {
-    flexBasis: '47%',
+  pressable: {
+    flexBasis: '46%',
     flexGrow: 1,
-    borderRadius: Radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.md,
+  },
+  tile: {
+    padding: 16,
     gap: 6,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   iconWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
+    width: 42,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
 });

@@ -1,33 +1,104 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View, Animated } from 'react-native';
+import { useRef } from 'react';
 
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { SectionHeader } from '@/components/ui/section-header';
-import { Radius, Spacing } from '@/constants/theme';
-import type { ThemePreference } from '@/constants/theme';
+import { useTheme } from '@/theme';
+import type { ThemePreference } from '@/theme';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import { getApiErrorMessage } from '@/lib/api';
 import { logoutAll } from '@/lib/services/auth.service';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; icon: IconName; caption: string }[] = [
-  { value: 'system', label: 'System', icon: 'brightness-auto', caption: 'Match device' },
-  { value: 'light', label: 'Light', icon: 'light-mode', caption: 'Always bright' },
-  { value: 'dark', label: 'Dark', icon: 'dark-mode', caption: 'Always dim' },
+  { value: 'system', label: 'System', icon: 'brightness-auto', caption: 'Match Device' },
+  { value: 'light', label: 'Light', icon: 'light-mode', caption: 'Always Bright' },
+  { value: 'dark', label: 'Dark', icon: 'dark-mode', caption: 'Always Dim' },
 ];
+
+function ThemeOptionCard({
+  opt,
+  selected,
+  onPress,
+}: {
+  opt: typeof THEME_OPTIONS[number];
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const { colors, radius, resolvedTheme } = useTheme();
+
+  // Premium press scale animation
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 0.96,
+      duration: 120,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 1,
+      duration: 120,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const bg = selected
+    ? (resolvedTheme === 'dark' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(5, 150, 105, 0.12)')
+    : colors.surfaceGlass;
+  const border = selected ? colors.primary : colors.border;
+  const iconBg = selected ? colors.primary : colors.border;
+  const iconCol = selected
+    ? (resolvedTheme === 'dark' ? '#052E16' : '#FFFFFF')
+    : colors.textSecondary;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      style={styles.pressableOpt}>
+      <Animated.View
+        style={[
+          styles.themeOption,
+          {
+            borderColor: border,
+            backgroundColor: bg,
+            borderRadius: radius.xl, // 16px radius
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}>
+        <View style={[styles.themeIcon, { backgroundColor: iconBg, borderRadius: radius.md }]}>
+          <MaterialIcons name={opt.icon} size={20} color={iconCol} />
+        </View>
+        <ThemedText type="smallBold" style={{ color: selected ? colors.primary : colors.text }}>
+          {opt.label}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textMuted">
+          {opt.caption}
+        </ThemedText>
+      </Animated.View>
+    </Pressable>
+  );
+}
 
 export default function SettingsScreen() {
   const { logout } = useAuth();
-  const { preference, setPreference, colors } = useAppTheme();
+  const { preference, setPreference, colors, spacing } = useTheme();
 
   const handleLogoutAll = async () => {
     try {
       await logoutAll();
-      Alert.alert('Done', 'Logged out from all devices');
+      Alert.alert('Success', 'You have been logged out from all devices.');
       await logout();
     } catch (err) {
       Alert.alert('Error', getApiErrorMessage(err));
@@ -36,47 +107,22 @@ export default function SettingsScreen() {
 
   return (
     <Screen title="Settings" withBackButton>
-      <SectionHeader title="Appearance" caption="Pick how the app looks" />
-      <View style={styles.themeRow}>
-        {THEME_OPTIONS.map((opt) => {
-          const selected = preference === opt.value;
-          return (
-            <Pressable
-              key={opt.value}
-              onPress={() => setPreference(opt.value)}
-              style={[
-                styles.themeOption,
-                {
-                  borderColor: selected ? colors.primary : colors.border,
-                  backgroundColor: selected ? colors.primaryContainer : colors.surface,
-                },
-              ]}>
-              <View
-                style={[
-                  styles.themeIcon,
-                  { backgroundColor: selected ? colors.primary : colors.surfaceVariant },
-                ]}>
-                <MaterialIcons
-                  name={opt.icon}
-                  size={22}
-                  color={selected ? colors.onPrimary : colors.textSecondary}
-                />
-              </View>
-              <ThemedText type="smallBold" style={{ color: selected ? colors.primary : colors.text }}>
-                {opt.label}
-              </ThemedText>
-              <ThemedText type="small" themeColor="textMuted">
-                {opt.caption}
-              </ThemedText>
-            </Pressable>
-          );
-        })}
+      <SectionHeader title="Appearance" caption="Pick how the application looks" />
+      <View style={[styles.themeRow, { gap: spacing.sm }]}>
+        {THEME_OPTIONS.map((opt) => (
+          <ThemeOptionCard
+            key={opt.value}
+            opt={opt}
+            selected={preference === opt.value}
+            onPress={() => setPreference(opt.value)}
+          />
+        ))}
       </View>
 
-      <SectionHeader title="Sessions" caption="Manage where you're signed in" />
-      <View style={styles.group}>
-        <Button title="Sign out" variant="outline" onPress={logout} />
-        <Button title="Sign out all devices" variant="destructive" onPress={handleLogoutAll} />
+      <SectionHeader title="Session Management" caption="Manage where you're signed in" />
+      <View style={[styles.group, { gap: spacing.md }]}>
+        <Button title="Sign Out from Device" variant="outline" onPress={logout} />
+        <Button title="Sign Out from All Devices" variant="destructive" onPress={handleLogoutAll} />
       </View>
     </Screen>
   );
@@ -85,24 +131,25 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   themeRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+  },
+  pressableOpt: {
+    flex: 1,
   },
   themeOption: {
-    flex: 1,
     alignItems: 'center',
     gap: 4,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xs,
-    borderRadius: Radius.lg,
+    paddingVertical: 18,
+    paddingHorizontal: 8,
     borderWidth: 1.5,
   },
   themeIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  group: { gap: Spacing.sm },
+  group: {
+    marginTop: 4,
+  },
 });

@@ -8,14 +8,13 @@ import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SectionHeader } from '@/components/ui/section-header';
-import { Radius, Spacing } from '@/constants/theme';
-import { useAppTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '@/theme';
 import { getApiErrorMessage } from '@/lib/api';
 import { getAcademicSessions, studentRegister } from '@/lib/services/auth.service';
 import { ACADEMIC_DEPARTMENTS, type AcademicDepartment, type AcademicSession } from '@/lib/types';
 
 export default function SignupScreen() {
-  const { colors } = useAppTheme();
+  const { colors, spacing, radius } = useTheme();
   const [sessions, setSessions] = useState<AcademicSession[]>([]);
   const [form, setForm] = useState({
     name: '',
@@ -76,19 +75,27 @@ export default function SignupScreen() {
   const renderPicker = (value: string, placeholder: string, open: boolean, toggle: () => void) => (
     <Pressable
       onPress={toggle}
+      accessibilityRole="button"
       style={[
         styles.picker,
-        { borderColor: open ? colors.primary : colors.border, backgroundColor: colors.surface, borderWidth: open ? 1.5 : 1 },
+        {
+          borderColor: open ? colors.primary : colors.border,
+          backgroundColor: colors.surfaceGlass,
+          borderWidth: 1,
+          borderRadius: radius.md,
+        },
       ]}>
-      <ThemedText style={{ color: value ? colors.text : colors.textMuted }}>{value || placeholder}</ThemedText>
-      <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={22} color={colors.textMuted} />
+      <ThemedText style={{ color: value ? colors.text : colors.textMuted }}>
+        {value || placeholder}
+      </ThemedText>
+      <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={20} color={colors.textMuted} />
     </Pressable>
   );
 
   return (
     <Screen title="Create account" subtitle="Register as a RUET student">
       {error ? (
-        <View style={[styles.errorBox, { backgroundColor: colors.errorContainer }]}>
+        <View style={[styles.errorBox, { backgroundColor: `${colors.error}14`, borderColor: `${colors.error}40` }]}>
           <ThemedText type="small" style={{ color: colors.error }}>
             {error}
           </ThemedText>
@@ -96,7 +103,7 @@ export default function SignupScreen() {
       ) : null}
 
       <SectionHeader title="Account" />
-      <View style={styles.form}>
+      <View style={[styles.form, { gap: spacing.md }]}>
         <Input label="Full name" icon="person" value={form.name} onChangeText={(v) => update('name', v)} />
         <Input
           label="Email"
@@ -105,75 +112,85 @@ export default function SignupScreen() {
           keyboardType="email-address"
           value={form.email}
           onChangeText={(v) => update('email', v)}
+          placeholder="student@ruet.ac.bd"
         />
-        <Input label="Phone" icon="call" keyboardType="phone-pad" value={form.phone} onChangeText={(v) => update('phone', v)} />
+        <Input
+          label="Phone"
+          icon="call"
+          keyboardType="phone-pad"
+          value={form.phone}
+          onChangeText={(v) => update('phone', v)}
+          placeholder="01xxxxxxxxx"
+        />
         <Input
           label="Roll number"
           icon="badge"
           keyboardType="number-pad"
           value={form.rollNumber}
           onChangeText={(v) => update('rollNumber', v)}
+          placeholder="e.g. 1903001"
         />
       </View>
 
       <SectionHeader title="Academics" />
-      <View style={styles.form}>
-        <ThemedText type="smallBold" themeColor="textSecondary">
-          Department
-        </ThemedText>
-        {renderPicker(form.academicDepartment, 'Select department', showDeptPicker, () => setShowDeptPicker((v) => !v))}
-        {showDeptPicker ? (
-          <View style={[styles.pickerList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            {ACADEMIC_DEPARTMENTS.map((dept) => (
-              <Pressable
-                key={dept}
-                onPress={() => {
-                  update('academicDepartment', dept);
-                  setShowDeptPicker(false);
-                }}
-                style={styles.pickerItem}>
-                <ThemedText>{dept}</ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
+      <View style={[styles.form, { gap: spacing.md }]}>
+        <View style={{ gap: 4 }}>
+          <ThemedText type="overline">Department</ThemedText>
+          {renderPicker(form.academicDepartment, 'Select department', showDeptPicker, () => setShowDeptPicker((v) => !v))}
+          {showDeptPicker ? (
+            <View style={[styles.pickerList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              {ACADEMIC_DEPARTMENTS.map((dept) => (
+                <Pressable
+                  key={dept}
+                  onPress={() => {
+                    update('academicDepartment', dept);
+                    setShowDeptPicker(false);
+                  }}
+                  style={[styles.pickerItem, { borderBottomColor: colors.border }]}>
+                  <ThemedText style={{ color: colors.text }}>{dept}</ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </View>
 
-        <ThemedText type="smallBold" themeColor="textSecondary">
-          Session
-        </ThemedText>
-        {renderPicker(form.session, 'Select session', showSessionPicker, () => setShowSessionPicker((v) => !v))}
-        {showSessionPicker ? (
-          <View style={[styles.pickerList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            {sessions.map((s) => (
-              <Pressable
-                key={s.id}
-                onPress={() => {
-                  update('session', s.label);
-                  setShowSessionPicker(false);
-                }}
-                style={styles.pickerItem}>
-                <ThemedText>{s.label}</ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
+        <View style={{ gap: 4 }}>
+          <ThemedText type="overline">Session</ThemedText>
+          {renderPicker(form.session, 'Select session', showSessionPicker, () => setShowSessionPicker((v) => !v))}
+          {showSessionPicker ? (
+            <View style={[styles.pickerList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              {sessions.map((s) => (
+                <Pressable
+                  key={s.id}
+                  onPress={() => {
+                    update('session', s.label);
+                    setShowSessionPicker(false);
+                  }}
+                  style={[styles.pickerItem, { borderBottomColor: colors.border }]}>
+                  <ThemedText style={{ color: colors.text }}>{s.label}</ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </View>
       </View>
 
       <SectionHeader title="Security" />
-      <View style={styles.form}>
-        <Input label="Password" icon="lock" secureTextEntry value={form.password} onChangeText={(v) => update('password', v)} />
+      <View style={[styles.form, { gap: spacing.md }]}>
+        <Input label="Password" icon="lock" secureTextEntry value={form.password} onChangeText={(v) => update('password', v)} placeholder="Min 6 characters" />
         <Input
           label="Confirm password"
           icon="lock-reset"
           secureTextEntry
           value={form.confirmPassword}
           onChangeText={(v) => update('confirmPassword', v)}
+          placeholder="Repeat password"
         />
       </View>
 
-      <Button title="Create account" loading={loading} onPress={handleSignup} />
+      <Button title="Create account" loading={loading} onPress={handleSignup} style={styles.submit} />
 
-      <ThemedText type="small" themeColor="textSecondary" style={styles.footer}>
+      <ThemedText type="small" themeColor="textMuted" style={[styles.footer, { marginTop: spacing.md }]}>
         Already registered?{' '}
         <Link href="/login">
           <ThemedText type="link" themeColor="primary">
@@ -186,24 +203,35 @@ export default function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
-  errorBox: { padding: Spacing.md, borderRadius: Radius.md },
-  form: { gap: Spacing.sm },
+  errorBox: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  form: {
+    marginBottom: 8,
+  },
   picker: {
-    minHeight: 52,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
+    height: 52,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   pickerList: {
     borderWidth: 1,
-    borderRadius: Radius.md,
+    borderRadius: 12,
+    marginTop: 4,
     overflow: 'hidden',
   },
   pickerItem: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  footer: { textAlign: 'center', marginTop: Spacing.sm },
+  submit: {
+    marginTop: 16,
+  },
+  footer: { textAlign: 'center' },
 });

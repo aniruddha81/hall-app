@@ -1,11 +1,11 @@
 import { NavigationBar } from 'expo-navigation-bar';
 import { StatusBar } from 'expo-status-bar';
-import * as SystemUI from 'expo-system-ui';
 import { Platform, StatusBar as NativeStatusBar } from 'react-native';
 import { useEffect } from 'react';
 
 import { useStatusBarOverride } from '@/contexts/StatusBarContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { setRootBackgroundColor } from '@/lib/safe-system-ui';
 
 /** Keeps status bar and Android navigation bar in sync with the active theme (SDK 56 APIs). */
 export function SystemChrome() {
@@ -19,13 +19,28 @@ export function SystemChrome() {
   const translucent = override?.translucent ?? false;
 
   useEffect(() => {
-    void SystemUI.setBackgroundColorAsync(colors.background);
-    if (Platform.OS === 'android') {
-      NativeStatusBar.setTranslucent(translucent);
-      NativeStatusBar.setBackgroundColor(backgroundColor, true);
-      NativeStatusBar.setBarStyle(nativeBarStyle, true);
-      void NavigationBar.setStyle(colors.navBar);
-    }
+    let cancelled = false;
+
+    const apply = async () => {
+      if (cancelled) return;
+      await setRootBackgroundColor(colors.background);
+      if (cancelled || Platform.OS !== 'android') return;
+
+      try {
+        NativeStatusBar.setTranslucent(translucent);
+        NativeStatusBar.setBackgroundColor(backgroundColor, true);
+        NativeStatusBar.setBarStyle(nativeBarStyle, true);
+      } catch {
+        // Activity may be gone during fast refresh
+      }
+
+    };
+
+    void apply();
+
+    return () => {
+      cancelled = true;
+    };
   }, [backgroundColor, colors.background, colors.navBar, nativeBarStyle, translucent]);
 
   return (

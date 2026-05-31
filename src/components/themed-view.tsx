@@ -1,12 +1,19 @@
 import { View, type ViewProps } from 'react-native';
-
-import { useAppTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '@/theme';
 
 export type ThemedViewProps = ViewProps & {
-  variant?: 'background' | 'surface' | 'surfaceVariant';
+  variant?: 'background' | 'backgroundSecondary' | 'surface';
 };
 
 export function ThemedView({ style, variant = 'background', ...otherProps }: ThemedViewProps) {
-  const { colors } = useAppTheme();
-  return <View style={[{ backgroundColor: colors[variant] }, style]} {...otherProps} />;
+  const { colors } = useTheme();
+  
+  // Resolve background colors
+  const resolvedBg = variant === 'backgroundSecondary'
+    ? colors.backgroundSecondary
+    : variant === 'surface'
+      ? colors.surface
+      : colors.background;
+
+  return <View style={[{ backgroundColor: resolvedBg }, style]} {...otherProps} />;
 }

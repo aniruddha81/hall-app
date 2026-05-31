@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { GradientHeader } from '@/components/gradient-header';
 import { Screen } from '@/components/screen';
@@ -10,13 +11,12 @@ import { FeatureTile } from '@/components/ui/feature-tile';
 import { ListRow } from '@/components/ui/list-row';
 import { SectionHeader } from '@/components/ui/section-header';
 import { StatTile } from '@/components/ui/stat-tile';
-import { Spacing } from '@/constants/theme';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAppTheme } from '@/contexts/ThemeContext';
-import { getApiErrorMessage } from '@/lib/api';
+import { useTheme } from '@/theme';
 import { getMyActiveTokens, getTomorrowMenus } from '@/lib/services/dining.service';
-import { getMyApplicationStatus } from '@/lib/services/student.service';
 import type { MealMenu, MealToken } from '@/lib/types';
+import { getApiErrorMessage } from '@/lib/api';
 
 function formatHall(hall: string | null) {
   return hall?.replace(/_/g, ' ') ?? 'Not assigned';
@@ -24,31 +24,26 @@ function formatHall(hall: string | null) {
 
 export default function DashboardScreen() {
   const { user } = useAuth();
-  const { colors } = useAppTheme();
+  const { colors, spacing, radius } = useTheme();
   const [menus, setMenus] = useState<{ lunch: MealMenu[]; dinner: MealMenu[] }>({ lunch: [], dinner: [] });
   const [tokens, setTokens] = useState<MealToken[]>([]);
-  const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadData = async () => {
+    try {
+      const [menusRes, tokensRes] = await Promise.allSettled([getTomorrowMenus(), getMyActiveTokens()]);
+      if (menusRes.status === 'fulfilled') setMenus(menusRes.value.menus);
+      if (tokensRes.status === 'fulfilled') setTokens(tokensRes.value.tokens);
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const [menusRes, tokensRes] = await Promise.allSettled([getTomorrowMenus(), getMyActiveTokens()]);
-        if (menusRes.status === 'fulfilled') setMenus(menusRes.value.menus);
-        if (tokensRes.status === 'fulfilled') setTokens(tokensRes.value.tokens);
-        try {
-          const appRes = await getMyApplicationStatus();
-          setApplicationStatus(appRes?.status ?? null);
-        } catch {
-          setApplicationStatus(null);
-        }
-      } catch (err) {
-        setError(getApiErrorMessage(err));
-      } finally {
-        setLoading(false);
-      }
-    })();
+    void loadData();
   }, []);
 
   const allMenus = [...menus.lunch, ...menus.dinner];
@@ -58,19 +53,25 @@ export default function DashboardScreen() {
       <View style={styles.headerTop}>
         <View style={{ flex: 1 }}>
           <ThemedText type="overline" style={styles.headerOverline}>
-            RUET Hall Portal
+            RUET Hall Student Portal
           </ThemedText>
           <ThemedText type="title" style={styles.headerTitle}>
             Hi, {user?.name?.split(' ')[0] ?? 'Student'}
           </ThemedText>
         </View>
-        <Avatar name={user?.name} size={52} />
+        <Avatar
+          name={user?.name}
+          uri={user?.avatarUrl}
+          size={48}
+          onPress={() => router.push('/(app)/(tabs)/profile')}
+        />
       </View>
 
-      <View style={styles.allocation}>
+      {/* Glassmorphism Hall Allocation Badge */}
+      <View style={[styles.allocation, { borderRadius: radius.xl }]}>
         <View style={styles.allocationItem}>
-          <ThemedText type="small" style={styles.allocationLabel}>
-            Hall
+          <ThemedText type="overline" style={styles.allocationLabel}>
+            My Assigned Hall
           </ThemedText>
           <ThemedText type="smallBold" style={styles.allocationValue} numberOfLines={1}>
             {formatHall(user?.hall ?? null)}
@@ -78,7 +79,7 @@ export default function DashboardScreen() {
         </View>
         <View style={styles.allocationDivider} />
         <View style={styles.allocationItem}>
-          <ThemedText type="small" style={styles.allocationLabel}>
+          <ThemedText type="overline" style={styles.allocationLabel}>
             Status
           </ThemedText>
           <ThemedText type="smallBold" style={styles.allocationValue}>
@@ -92,67 +93,72 @@ export default function DashboardScreen() {
   return (
     <Screen header={header} overlap={28} loading={loading}>
       {error ? (
-        <ThemedText type="small" style={{ color: colors.error }}>
-          {error}
-        </ThemedText>
+        <View style={[styles.errorBox, { backgroundColor: `${colors.error}14`, borderColor: `${colors.error}30` }]}>
+          <ThemedText type="small" style={{ color: colors.error }}>
+            {error}
+          </ThemedText>
+        </View>
       ) : null}
 
-      <View style={styles.statRow}>
+      {/* Stats Section */}
+      <View style={[styles.statRow, { gap: spacing.md }]}>
         <StatTile
-          label="Active tokens"
+          label="Active Tokens"
           value={String(tokens.length)}
           icon="confirmation-number"
-          accent={colors.accentDining}
-          accentTint={colors.accentDiningTint}
+          accent={colors.primary}
+          accentTint={`${colors.primary}1A`}
         />
         <StatTile
-          label="Tomorrow's meals"
+          label="Tomorrow's Meals"
           value={String(allMenus.length)}
           icon="restaurant"
-          accent={colors.accentPay}
-          accentTint={colors.accentPayTint}
+          accent={colors.secondary}
+          accentTint={`${colors.secondary}1A`}
         />
       </View>
 
-      <SectionHeader title="Quick actions" />
-      <View style={styles.grid}>
+      {/* Quick Actions Grid */}
+      <SectionHeader title="Quick Actions" />
+      <View style={[styles.grid, { gap: spacing.sm }]}>
         <FeatureTile
           icon="restaurant-menu"
           label="Dining"
           caption="Book meal tokens"
-          accent={colors.accentDining}
-          accentTint={colors.accentDiningTint}
+          accent={colors.primary}
+          accentTint={`${colors.primary}12`}
           onPress={() => router.push('/(app)/(tabs)/dining')}
         />
         <FeatureTile
           icon="payments"
           label="Payments"
-          caption="Clear your dues"
-          accent={colors.accentPay}
-          accentTint={colors.accentPayTint}
+          caption="Clear outstanding dues"
+          accent={colors.secondary}
+          accentTint={`${colors.secondary}12`}
           onPress={() => router.push('/(app)/(tabs)/payments')}
         />
         <FeatureTile
           icon="assignment"
           label="Admission"
-          caption="Seat application"
-          accent={colors.accentAdmission}
-          accentTint={colors.accentAdmissionTint}
+          caption="Apply for hall seats"
+          accent={colors.tertiary}
+          accentTint={`${colors.tertiary}12`}
           onPress={() => router.push('/(app)/admission')}
         />
         <FeatureTile
           icon="report-problem"
-          label="Report"
-          caption="Damage complaint"
-          accent={colors.accentDamage}
-          accentTint={colors.accentDamageTint}
+          label="Report Damage"
+          caption="Inventory complaints"
+          accent={colors.error}
+          accentTint={`${colors.error}12`}
           onPress={() => router.push('/(app)/report-damage')}
         />
       </View>
 
+      {/* Tomorrow's Dining List */}
       <SectionHeader
-        title="Tomorrow's dining"
-        actionLabel="Book"
+        title="Tomorrow's Dining Menu"
+        actionLabel="Book Token"
         onActionPress={() => router.push('/(app)/(tabs)/dining')}
       />
       {allMenus.length > 0 ? (
@@ -161,10 +167,9 @@ export default function DashboardScreen() {
             <ListRow
               key={m.id}
               icon="lunch-dining"
-              accent={colors.accentDining}
-              accentTint={colors.accentDiningTint}
+              accent={colors.primary}
               title={`Lunch · ${m.menuDescription}`}
-              subtitle={`${m.availableTokens} tokens available`}
+              subtitle={`${m.availableTokens} tokens left`}
               trailingText={`৳${m.price}`}
             />
           ))}
@@ -172,39 +177,54 @@ export default function DashboardScreen() {
             <ListRow
               key={m.id}
               icon="dinner-dining"
-              accent={colors.accentAdmission}
-              accentTint={colors.accentAdmissionTint}
+              accent={colors.secondary}
               title={`Dinner · ${m.menuDescription}`}
-              subtitle={`${m.availableTokens} tokens available`}
+              subtitle={`${m.availableTokens} tokens left`}
               trailingText={`৳${m.price}`}
             />
           ))}
         </View>
       ) : (
-        <ThemedText type="small" themeColor="textMuted">
-          No menus posted yet.
-        </ThemedText>
+        /* Premium Empty State */
+        <View style={[styles.emptyContainer, { borderColor: colors.border, backgroundColor: colors.surfaceGlass, borderRadius: radius.xl }]}>
+          <MaterialIcons name="restaurant-menu" size={28} color={colors.textMuted} />
+          <ThemedText type="smallBold" style={{ color: colors.text }}>No Menu Posted Yet</ThemedText>
+          <ThemedText type="small" themeColor="textMuted" style={{ textAlign: 'center' }}>
+            Hall kitchen administration has not uploaded tomorrow's meal menu.
+          </ThemedText>
+        </View>
       )}
 
-      <SectionHeader title="Active tokens" />
+      {/* Active Tokens List */}
+      <SectionHeader title="Active Meal Tokens" />
       {tokens.length > 0 ? (
         <View style={styles.list}>
           {tokens.map((t) => (
             <ListRow
               key={t.id}
               icon="confirmation-number"
-              accent={colors.accentPay}
-              accentTint={colors.accentPayTint}
+              accent={colors.primary}
               title={`${t.mealType} · ${t.mealDate}`}
-              subtitle={`Quantity ${t.quantity}`}
+              subtitle={`Quantity: ${t.quantity}`}
               trailingText={`৳${t.totalAmount}`}
             />
           ))}
         </View>
       ) : (
-        <ThemedText type="small" themeColor="textMuted">
-          No active tokens.
-        </ThemedText>
+        /* Premium Empty State */
+        <View style={[styles.emptyContainer, { borderColor: colors.border, backgroundColor: colors.surfaceGlass, borderRadius: radius.xl }]}>
+          <MaterialIcons name="confirmation-number" size={28} color={colors.textMuted} />
+          <ThemedText type="smallBold" style={{ color: colors.text }}>No Active Tokens</ThemedText>
+          <ThemedText type="small" themeColor="textMuted" style={{ textAlign: 'center', marginBottom: 8 }}>
+            You don't have any booked meal tokens active for tomorrow.
+          </ThemedText>
+          <Button
+            title="Book Meal Token"
+            size="sm"
+            variant="ghost"
+            onPress={() => router.push('/(app)/(tabs)/dining')}
+          />
+        </View>
       )}
     </Screen>
   );
@@ -214,46 +234,58 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: 12,
   },
   headerOverline: {
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '600',
   },
   headerTitle: {
     color: '#FFFFFF',
+    marginTop: -2,
   },
   allocation: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderRadius: 16,
-    paddingVertical: Spacing.sm + 2,
-    paddingHorizontal: Spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
   allocationItem: {
     flex: 1,
     gap: 2,
   },
   allocationLabel: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   allocationValue: {
     color: '#FFFFFF',
   },
   allocationDivider: {
     width: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    marginHorizontal: Spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    marginHorizontal: 16,
   },
   statRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.sm,
   },
-  list: {
-    gap: Spacing.sm,
+  list: {},
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    gap: 6,
+  },
+  errorBox: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
   },
 });

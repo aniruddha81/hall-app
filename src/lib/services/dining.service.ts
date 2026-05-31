@@ -1,4 +1,5 @@
 import { apiRequest } from '@/lib/api';
+import { appendImageToFormData } from '@/lib/multipart';
 import type { MealMenu, MealToken, PaymentMethod } from '@/lib/types';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -50,11 +51,7 @@ export async function bookMealTokens(data: {
     formData.append('menuId', data.menuId);
     formData.append('quantity', String(data.quantity));
     formData.append('paymentMethod', data.paymentMethod);
-    formData.append('receiptImage', {
-      uri: data.receiptUri,
-      name: 'receipt.jpg',
-      type: 'image/jpeg',
-    } as unknown as Blob);
+    appendImageToFormData(formData, 'receiptImage', data.receiptUri);
 
     const { data: res } = await apiRequest('/dining/book-tokens', {
       method: 'POST',
