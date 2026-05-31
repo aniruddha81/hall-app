@@ -10,11 +10,22 @@ import { Input } from '@/components/ui/input';
 import { SectionHeader } from '@/components/ui/section-header';
 import { useTheme } from '@/theme';
 import { getApiErrorMessage } from '@/lib/api';
-import { getAcademicSessions, studentRegister } from '@/lib/services/auth.service';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  getAcademicSessions,
+  resendStudentOtp,
+  studentRegister,
+  verifyStudentEmail,
+} from '@/lib/services/auth.service';
 import { ACADEMIC_DEPARTMENTS, type AcademicDepartment, type AcademicSession } from '@/lib/types';
 
 export default function SignupScreen() {
   const { colors, spacing, radius } = useTheme();
+  const { setUser } = useAuth();
+  const [step, setStep] = useState<'register' | 'verify'>('register');
+  const [verifyEmail, setVerifyEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [info, setInfo] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AcademicSession[]>([]);
   const [form, setForm] = useState({
     name: '',
@@ -64,7 +75,44 @@ export default function SignupScreen() {
         session: form.session,
         phone: form.phone.trim(),
       });
-      router.replace('/login');
+      setVerifyEmail(form.email.trim());
+      setOtp('');
+      setInfo('We sent a 6-digit code to your email.');
+      setStep('verify');
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    setError(null);
+    setInfo(null);
+    if (otp.length !== 6) {
+      setError('Enter the 6-digit verification code');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await verifyStudentEmail({ email: verifyEmail, otp });
+      setUser(res.data.student_data);
+      router.replace('/(app)/(tabs)');
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setError(null);
+    setInfo(null);
+    setLoading(true);
+    try {
+      await resendStudentOtp({ email: verifyEmail });
+      setInfo('A new verification code was sent.');
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -91,6 +139,53 @@ export default function SignupScreen() {
       <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={20} color={colors.textMuted} />
     </Pressable>
   );
+
+  if (step === 'verify') {
+    return (
+      <Screen title="Verify email" subtitle={`Code sent to ${verifyEmail}`}>
+        {error ? (
+          <View style={[styles.errorBox, { backgroundColor: `${colors.error}14`, borderColor: `${colors.error}40` }]}>
+            <ThemedText type="small" style={{ color: colors.error }}>
+              {error}
+            </ThemedText>
+          </View>
+        ) : null}
+        {info ? (
+          <View style={[styles.errorBox, { backgroundColor: `${colors.primary}14`, borderColor: `${colors.primary}40` }]}>
+            <ThemedText type="small" style={{ color: colors.primary }}>
+              {info}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        <SectionHeader title="Verification" />
+        <View style={[styles.form, { gap: spacing.md }]}>
+          <Input
+            label="6-digit code"
+            icon="pin"
+            keyboardType="number-pad"
+            maxLength={6}
+            value={otp}
+            onChangeText={(v) => setOtp(v.replace(/\D/g, '').slice(0, 6))}
+            placeholder="000000"
+          />
+        </View>
+
+        <Button title="Verify & continue" loading={loading} onPress={handleVerify} style={styles.submit} />
+        <Button title="Resend code" variant="secondary" loading={loading} onPress={handleResendOtp} />
+        <Button title="Back" variant="ghost" onPress={() => setStep('register')} />
+
+        <ThemedText type="small" themeColor="textMuted" style={[styles.footer, { marginTop: spacing.md }]}>
+          Already verified?{' '}
+          <Link href="/login">
+            <ThemedText type="link" themeColor="primary">
+              Sign in
+            </ThemedText>
+          </Link>
+        </ThemedText>
+      </Screen>
+    );
+  }
 
   return (
     <Screen title="Create account" subtitle="Register as a RUET student">

@@ -28,12 +28,30 @@ export async function studentRegister(data: {
   session: string;
   phone: string;
 }) {
-  const { data: res, sessionId } = await apiRequest<RegisterResponse>('/auth/register', {
+  const { data: res } = await apiRequest<RegisterResponse>('/auth/register', {
+    method: 'POST',
+    body: data,
+    skipAuth: true,
+  });
+  return res;
+}
+
+export async function verifyStudentEmail(data: { email: string; otp: string }) {
+  const { data: res, sessionId } = await apiRequest<LoginResponse>('/auth/verify-email', {
     method: 'POST',
     body: data,
     skipAuth: true,
   });
   await persistSessionFromResponse(sessionId);
+  return res;
+}
+
+export async function resendStudentOtp(data: { email: string }) {
+  const { data: res } = await apiRequest<{ otpExpiresInSec: number }>('/auth/resend-otp', {
+    method: 'POST',
+    body: data,
+    skipAuth: true,
+  });
   return res;
 }
 
