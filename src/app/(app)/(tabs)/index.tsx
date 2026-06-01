@@ -140,7 +140,7 @@ export default function DashboardScreen() {
         <FeatureTile
           icon="assignment"
           label="Admission"
-          caption="Apply for hall seats"
+          caption="Apply to DSW for a seat"
           accent={colors.tertiary}
           accentTint={`${colors.tertiary}12`}
           onPress={() => router.push('/(app)/admission')}

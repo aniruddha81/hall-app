@@ -120,10 +120,11 @@ export interface StudentDue {
 
 export interface SeatApplication {
   id: string;
-  hall: Hall;
+  hall: Hall | null;
   academicDepartment: AcademicDepartment;
   session: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  appliedAt: string;
+  createdAt?: string;
+  appliedAt?: string;
   seatCharge?: StudentDue | null;
 }

@@ -3,7 +3,6 @@ import { appendImageToFormData } from '@/lib/multipart';
 import type {
   AcademicDepartment,
   FinancePaymentMethod,
-  Hall,
   SeatApplication,
   StudentDue,
 } from '@/lib/types';
@@ -44,7 +43,6 @@ function mapApplication(raw: RawSeatApplication): SeatApplication {
 }
 
 export async function applyForSeat(data: {
-  hall: Hall;
   academicDepartment: AcademicDepartment;
   session: string;
 }) {

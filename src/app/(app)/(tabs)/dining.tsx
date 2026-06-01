@@ -1,33 +1,40 @@
-import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as ImagePicker from "expo-image-picker";
+import { useEffect, useState } from "react";
+import { Alert, StyleSheet, View } from "react-native";
 
-import { Screen } from '@/components/screen';
-import { ThemedText } from '@/components/themed-text';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Chip } from '@/components/ui/chip';
-import { IconBadge } from '@/components/ui/icon-badge';
-import { SectionHeader } from '@/components/ui/section-header';
-import { useTheme } from '@/theme';
-import { getApiErrorMessage } from '@/lib/api';
+import { Screen } from "@/components/screen";
+import { ThemedText } from "@/components/themed-text";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
+import { IconBadge } from "@/components/ui/icon-badge";
+import { SectionHeader } from "@/components/ui/section-header";
+import { getApiErrorMessage } from "@/lib/api";
 import {
   bookMealTokens,
   cancelMealToken,
   getMyActiveTokens,
   getTomorrowMenus,
-} from '@/lib/services/dining.service';
-import { PAYMENT_METHODS, type MealMenu, type MealToken, type PaymentMethod } from '@/lib/types';
+} from "@/lib/services/dining.service";
+import {
+  PAYMENT_METHODS,
+  type MealMenu,
+  type MealToken,
+  type PaymentMethod,
+} from "@/lib/types";
+import { useTheme } from "@/theme";
 
 export default function DiningScreen() {
   const { colors, spacing, radius, resolvedTheme } = useTheme();
-  const [menus, setMenus] = useState<{ lunch: MealMenu[]; dinner: MealMenu[] }>({ lunch: [], dinner: [] });
+  const [menus, setMenus] = useState<{ lunch: MealMenu[]; dinner: MealMenu[] }>(
+    { lunch: [], dinner: [] },
+  );
   const [tokens, setTokens] = useState<MealToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [bookingMenuId, setBookingMenuId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('BKASH');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("BKASH");
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +42,10 @@ export default function DiningScreen() {
   const load = async () => {
     setLoading(true);
     try {
-      const [menusRes, tokensRes] = await Promise.all([getTomorrowMenus(), getMyActiveTokens()]);
+      const [menusRes, tokensRes] = await Promise.all([
+        getTomorrowMenus(),
+        getMyActiveTokens(),
+      ]);
       setMenus(menusRes.menus);
       setTokens(tokensRes.tokens);
     } catch (err) {
@@ -50,8 +60,12 @@ export default function DiningScreen() {
   }, []);
 
   const pickReceipt = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-    if (!result.canceled && result.assets[0]) setReceiptUri(result.assets[0].uri);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0])
+      setReceiptUri(result.assets[0].uri);
   };
 
   const openBooking = (menuId: string) => {
@@ -68,9 +82,9 @@ export default function DiningScreen() {
         menuId,
         quantity,
         paymentMethod,
-        receiptUri: paymentMethod === 'BANK' ? receiptUri : null,
+        receiptUri: paymentMethod === "BANK" ? receiptUri : null,
       });
-      Alert.alert('Success', 'Meal token booked successfully');
+      Alert.alert("Success", "Meal token booked successfully");
       setBookingMenuId(null);
       await load();
     } catch (err) {
@@ -85,7 +99,7 @@ export default function DiningScreen() {
       await cancelMealToken(tokenId);
       await load();
     } catch (err) {
-      Alert.alert('Error', getApiErrorMessage(err));
+      Alert.alert("Error", getApiErrorMessage(err));
     }
   };
 
@@ -99,18 +113,25 @@ export default function DiningScreen() {
       <Card key={menu.id} style={styles.menuCard}>
         <View style={styles.menuHead}>
           <IconBadge
-            name={isDinner ? 'dinner-dining' : 'lunch-dining'}
+            name={isDinner ? "dinner-dining" : "lunch-dining"}
             color={accent}
             background={tint}
             size={44}
           />
           <View style={{ flex: 1 }}>
-            <ThemedText type="subtitle" style={{ fontSize: 16 }}>{menu.mealType}</ThemedText>
+            <ThemedText type="subtitle" style={{ fontSize: 16 }}>
+              {menu.mealType}
+            </ThemedText>
             <ThemedText type="small" themeColor="textMuted" numberOfLines={2}>
               {menu.menuDescription}
             </ThemedText>
           </View>
-          <View style={[styles.priceTag, { backgroundColor: tint, borderRadius: radius.full }]}>
+          <View
+            style={[
+              styles.priceTag,
+              { backgroundColor: tint, borderRadius: radius.full },
+            ]}
+          >
             <ThemedText type="smallBold" style={{ color: accent }}>
               ৳{menu.price}
             </ThemedText>
@@ -119,7 +140,9 @@ export default function DiningScreen() {
 
         <View style={styles.availRow}>
           <ThemedText type="small" themeColor="textMuted">
-            {soldOut ? 'Sold out' : `${menu.availableTokens} of ${menu.totalTokens} tokens available`}
+            {soldOut
+              ? "Sold out"
+              : `${menu.availableTokens} of ${menu.totalTokens} tokens available`}
           </ThemedText>
         </View>
 
@@ -134,7 +157,9 @@ export default function DiningScreen() {
                 style={styles.qtyBtn}
                 onPress={() => setQuantity((q) => Math.max(1, q - 1))}
               />
-              <ThemedText type="subtitle" style={{ paddingHorizontal: 12 }}>{quantity}</ThemedText>
+              <ThemedText type="subtitle" style={{ paddingHorizontal: 12 }}>
+                {quantity}
+              </ThemedText>
               <Button
                 title="+"
                 variant="outline"
@@ -157,9 +182,11 @@ export default function DiningScreen() {
               ))}
             </View>
 
-            {paymentMethod === 'BANK' ? (
+            {paymentMethod === "BANK" ? (
               <Button
-                title={receiptUri ? 'Receipt attached ✓' : 'Upload bank receipt'}
+                title={
+                  receiptUri ? "Receipt attached ✓" : "Upload bank receipt"
+                }
                 variant="outline"
                 onPress={pickReceipt}
                 style={styles.uploadBtn}
@@ -183,7 +210,7 @@ export default function DiningScreen() {
           </View>
         ) : (
           <Button
-            title={soldOut ? 'Sold Out' : 'Book Meal Token'}
+            title={soldOut ? "Sold Out" : "Book Meal Token"}
             disabled={soldOut}
             onPress={() => openBooking(menu.id)}
           />
@@ -193,9 +220,21 @@ export default function DiningScreen() {
   };
 
   return (
-    <Screen title="Dining Panel" subtitle="Book tomorrow's meal tokens" loading={loading}>
+    <Screen
+      title="Dining Panel"
+      subtitle="Book tomorrow's meal tokens"
+      loading={loading}
+    >
       {error ? (
-        <View style={[styles.errorBox, { backgroundColor: `${colors.error}14`, borderColor: `${colors.error}30` }]}>
+        <View
+          style={[
+            styles.errorBox,
+            {
+              backgroundColor: `${colors.error}14`,
+              borderColor: `${colors.error}30`,
+            },
+          ]}
+        >
           <ThemedText type="small" style={{ color: colors.error }}>
             {error}
           </ThemedText>
@@ -205,10 +244,29 @@ export default function DiningScreen() {
       <SectionHeader title="Available Menus" />
       {menus.lunch.length === 0 && menus.dinner.length === 0 ? (
         /* Centered empty state */
-        <View style={[styles.emptyContainer, { borderColor: colors.border, backgroundColor: colors.surfaceGlass, borderRadius: radius.xl }]}>
-          <MaterialIcons name="restaurant-menu" size={32} color={colors.textMuted} />
-          <ThemedText type="smallBold" style={{ color: colors.text }}>No Menus Posted</ThemedText>
-          <ThemedText type="small" themeColor="textMuted" style={{ textAlign: 'center' }}>
+        <View
+          style={[
+            styles.emptyContainer,
+            {
+              borderColor: colors.border,
+              backgroundColor: colors.surfaceGlass,
+              borderRadius: radius.xl,
+            },
+          ]}
+        >
+          <MaterialIcons
+            name="restaurant-menu"
+            size={32}
+            color={colors.textMuted}
+          />
+          <ThemedText type="smallBold" style={{ color: colors.text }}>
+            No Menus Posted
+          </ThemedText>
+          <ThemedText
+            type="small"
+            themeColor="textMuted"
+            style={{ textAlign: "center" }}
+          >
             No menus are currently posted for tomorrow's dining schedule.
           </ThemedText>
         </View>
@@ -222,10 +280,29 @@ export default function DiningScreen() {
       <SectionHeader title="Your Active Bookings" />
       {tokens.length === 0 ? (
         /* Centered empty state */
-        <View style={[styles.emptyContainer, { borderColor: colors.border, backgroundColor: colors.surfaceGlass, borderRadius: radius.xl }]}>
-          <MaterialIcons name="confirmation-number" size={32} color={colors.textMuted} />
-          <ThemedText type="smallBold" style={{ color: colors.text }}>No Active Bookings</ThemedText>
-          <ThemedText type="small" themeColor="textMuted" style={{ textAlign: 'center' }}>
+        <View
+          style={[
+            styles.emptyContainer,
+            {
+              borderColor: colors.border,
+              backgroundColor: colors.surfaceGlass,
+              borderRadius: radius.xl,
+            },
+          ]}
+        >
+          <MaterialIcons
+            name="confirmation-number"
+            size={32}
+            color={colors.textMuted}
+          />
+          <ThemedText type="smallBold" style={{ color: colors.text }}>
+            No Active Bookings
+          </ThemedText>
+          <ThemedText
+            type="small"
+            themeColor="textMuted"
+            style={{ textAlign: "center" }}
+          >
             You haven't booked any meal tokens yet.
           </ThemedText>
         </View>
@@ -270,8 +347,8 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
   },
   menuHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   priceTag: {
@@ -285,8 +362,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   qtyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     marginVertical: 4,
   },
@@ -295,8 +372,8 @@ const styles = StyleSheet.create({
     height: 40,
   },
   chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     marginVertical: 4,
   },
@@ -304,7 +381,7 @@ const styles = StyleSheet.create({
     marginVertical: 6,
   },
   actions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginTop: 8,
   },
@@ -315,16 +392,16 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   tokenRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 24,
     borderWidth: 1,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     gap: 6,
   },
   errorBox: {
