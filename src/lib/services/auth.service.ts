@@ -4,6 +4,7 @@ import type {
   AcademicDepartment,
   AcademicSession,
   LoginResponse,
+  OtpResendResponse,
   RegisterResponse,
   StudentData,
 } from '@/lib/types';
@@ -47,7 +48,7 @@ export async function verifyStudentEmail(data: { email: string; otp: string }) {
 }
 
 export async function resendStudentOtp(data: { email: string }) {
-  const { data: res } = await apiRequest<{ otpExpiresInSec: number }>('/auth/resend-otp', {
+  const { data: res } = await apiRequest<OtpResendResponse>('/auth/resend-otp', {
     method: 'POST',
     body: data,
     skipAuth: true,
@@ -62,6 +63,14 @@ export async function logout() {
 
 export async function logoutAll() {
   const { data } = await apiRequest<null>('/auth/logout-all', { method: 'POST' });
+  return data;
+}
+
+export async function deleteStudentAccount(data: { password: string }) {
+  const { data } = await apiRequest<null>('/auth/delete-account', {
+    method: 'POST',
+    body: data,
+  });
   return data;
 }
 

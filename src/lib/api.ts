@@ -14,11 +14,13 @@ type ApiErrorBody = {
 
 export class ApiError extends Error {
   status: number;
+  retryAfterSec?: number;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, retryAfterSec?: number) {
     super(message);
     this.status = status;
     this.name = 'ApiError';
+    this.retryAfterSec = retryAfterSec;
   }
 }
 
@@ -89,10 +91,33 @@ export async function apiRequest<T>(
       onUnauthorized?.();
     }
 
-    throw new ApiError(response.status, message);
+    const retryAfterSec =
+      typeof (payload as ApiResponse<T>).data === 'object' &&
+      (payload as ApiResponse<T>).data !== null &&
+      'retryAfterSec' in ((payload as ApiResponse<T>).data as object)
+        ? Number(
+            ((payload as ApiResponse<T>).data as { retryAfterSec?: number })
+              .retryAfterSec,
+          )
+        : undefined;
+
+    throw new ApiError(
+      response.status,
+      message,
+      Number.isFinite(retryAfterSec) && retryAfterSec! > 0
+        ? retryAfterSec
+        : undefined,
+    );
   }
 
   return { data: payload as ApiResponse<T>, sessionId: sessionId ?? undefined };
+}
+
+export function getApiOtpRetryAfterSec(error: unknown): number | null {
+  if (error instanceof ApiError && error.status === 429 && error.retryAfterSec) {
+    return error.retryAfterSec;
+  }
+  return null;
 }
 
 export function getApiErrorMessage(error: unknown): string {

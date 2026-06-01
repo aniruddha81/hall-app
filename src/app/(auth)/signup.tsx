@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SectionHeader } from '@/components/ui/section-header';
 import { useTheme } from '@/theme';
-import { getApiErrorMessage } from '@/lib/api';
+import { useOtpResendCooldown } from '@/hooks/use-otp-resend-cooldown';
+import { getApiErrorMessage, getApiOtpRetryAfterSec } from '@/lib/api';
+import { getResendCooldownSec } from '@/lib/otp';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getAcademicSessions,
@@ -22,6 +24,7 @@ import { ACADEMIC_DEPARTMENTS, type AcademicDepartment, type AcademicSession } f
 export default function SignupScreen() {
   const { colors, spacing, radius } = useTheme();
   const { setUser } = useAuth();
+  const { canResend, startCooldown, resendLabel } = useOtpResendCooldown();
   const [step, setStep] = useState<'register' | 'verify'>('register');
   const [verifyEmail, setVerifyEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -65,7 +68,7 @@ export default function SignupScreen() {
 
     setLoading(true);
     try {
-      await studentRegister({
+      const res = await studentRegister({
         name: form.name.trim(),
         email: form.email.trim(),
         password: form.password,
@@ -77,6 +80,7 @@ export default function SignupScreen() {
       });
       setVerifyEmail(form.email.trim());
       setOtp('');
+      startCooldown(getResendCooldownSec(res.data));
       setInfo('We sent a 6-digit code to your email.');
       setStep('verify');
     } catch (err) {
@@ -107,13 +111,17 @@ export default function SignupScreen() {
   };
 
   const handleResendOtp = async () => {
+    if (!canResend) return;
     setError(null);
     setInfo(null);
     setLoading(true);
     try {
-      await resendStudentOtp({ email: verifyEmail });
+      const res = await resendStudentOtp({ email: verifyEmail });
+      startCooldown(getResendCooldownSec(res.data));
       setInfo('A new verification code was sent.');
     } catch (err) {
+      const retryAfter = getApiOtpRetryAfterSec(err);
+      if (retryAfter) startCooldown(retryAfter);
       setError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
@@ -172,7 +180,13 @@ export default function SignupScreen() {
         </View>
 
         <Button title="Verify & continue" loading={loading} onPress={handleVerify} style={styles.submit} />
-        <Button title="Resend code" variant="secondary" loading={loading} onPress={handleResendOtp} />
+        <Button
+          title={resendLabel}
+          variant="secondary"
+          loading={loading}
+          disabled={!canResend}
+          onPress={handleResendOtp}
+        />
         <Button title="Back" variant="ghost" onPress={() => setStep('register')} />
 
         <ThemedText type="small" themeColor="textMuted" style={[styles.footer, { marginTop: spacing.md }]}>

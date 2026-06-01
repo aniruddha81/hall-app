@@ -1,16 +1,17 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Alert, Pressable, StyleSheet, View, Animated } from 'react-native';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { SectionHeader } from '@/components/ui/section-header';
 import { useTheme } from '@/theme';
 import type { ThemePreference } from '@/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiErrorMessage } from '@/lib/api';
-import { logoutAll } from '@/lib/services/auth.service';
+import { deleteStudentAccount, logoutAll } from '@/lib/services/auth.service';
 
 type IconName = React.ComponentProps<typeof MaterialIcons>['name'];
 
@@ -91,9 +92,42 @@ function ThemeOptionCard({
   );
 }
 
+const DELETE_CONFIRM_PHRASE = 'DELETE';
+
 export default function SettingsScreen() {
   const { logout } = useAuth();
   const { preference, setPreference, colors, spacing } = useTheme();
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const canDeleteAccount =
+    deletePassword.length > 0 && deleteConfirmText === DELETE_CONFIRM_PHRASE;
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== DELETE_CONFIRM_PHRASE) {
+      Alert.alert(
+        'Confirmation required',
+        `Type ${DELETE_CONFIRM_PHRASE} in the confirmation field to delete your account.`,
+      );
+      return;
+    }
+    if (!deletePassword) {
+      Alert.alert('Password required', 'Enter your password to delete your account.');
+      return;
+    }
+
+    setDeletingAccount(true);
+    try {
+      await deleteStudentAccount({ password: deletePassword });
+      Alert.alert('Account deleted', 'Your account and data have been removed.');
+      await logout();
+    } catch (err) {
+      Alert.alert('Could not delete account', getApiErrorMessage(err));
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
 
   const handleLogoutAll = async () => {
     try {
@@ -123,6 +157,38 @@ export default function SettingsScreen() {
       <View style={[styles.group, { gap: spacing.md }]}>
         <Button title="Sign Out from Device" variant="outline" onPress={logout} />
         <Button title="Sign Out from All Devices" variant="destructive" onPress={handleLogoutAll} />
+      </View>
+
+      <SectionHeader title="Delete Account" caption="Permanently remove your student account" />
+      <View style={[styles.group, { gap: spacing.md }]}>
+        <ThemedText type="small" themeColor="textMuted">
+          Enter your password and type {DELETE_CONFIRM_PHRASE} to confirm. All related
+          hall data will be erased and cannot be recovered.
+        </ThemedText>
+        <Input
+          label="Password"
+          secureTextEntry
+          autoCapitalize="none"
+          autoComplete="password"
+          value={deletePassword}
+          onChangeText={setDeletePassword}
+          editable={!deletingAccount}
+        />
+        <Input
+          label={`Type ${DELETE_CONFIRM_PHRASE} to confirm`}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          value={deleteConfirmText}
+          onChangeText={setDeleteConfirmText}
+          placeholder={DELETE_CONFIRM_PHRASE}
+          editable={!deletingAccount}
+        />
+        <Button
+          title={deletingAccount ? 'Deleting…' : 'Delete My Account'}
+          variant="destructive"
+          disabled={deletingAccount || !canDeleteAccount}
+          onPress={handleDeleteAccount}
+        />
       </View>
     </Screen>
   );
