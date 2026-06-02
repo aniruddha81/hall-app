@@ -28,12 +28,45 @@ type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;
   formData?: FormData;
   skipAuth?: boolean;
+  signal?: AbortSignal;
 };
 
+export function isRequestAborted(error: unknown): boolean {
+  if (error instanceof Error && error.name === 'AbortError') {
+    return true;
+  }
+  if (
+    typeof DOMException !== 'undefined' &&
+    error instanceof DOMException &&
+    error.name === 'AbortError'
+  ) {
+    return true;
+  }
+  return false;
+}
+
 let onUnauthorized: (() => void) | null = null;
+let scopedAbortSignal: AbortSignal | undefined;
 
 export function setUnauthorizedHandler(handler: () => void) {
   onUnauthorized = handler;
+}
+
+/** Runs async work with `signal` applied to nested `apiRequest` calls. */
+export async function runWithAbortSignal<T>(
+  signal: AbortSignal,
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (signal.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+  const previous = scopedAbortSignal;
+  scopedAbortSignal = signal;
+  try {
+    return await fn();
+  } finally {
+    scopedAbortSignal = previous;
+  }
 }
 
 async function buildHeaders(options: RequestOptions): Promise<Headers> {
@@ -60,9 +93,13 @@ export async function apiRequest<T>(
   const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   const headers = await buildHeaders(options);
 
+  const { signal: requestSignal, ...restOptions } = options;
+  const signal = requestSignal ?? scopedAbortSignal;
+
   const init: RequestInit = {
-    ...options,
+    ...restOptions,
     headers,
+    signal,
     body: options.formData
       ? options.formData
       : options.body !== undefined
@@ -70,7 +107,15 @@ export async function apiRequest<T>(
         : undefined,
   };
 
-  const response = await fetch(url, init);
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch (error) {
+    if (isRequestAborted(error)) {
+      throw error;
+    }
+    throw new ApiError(0, 'Network request failed. Check your connection and API URL.');
+  }
   const sessionId = extractSessionIdFromHeaders(response.headers);
 
   let payload: ApiResponse<T> | ApiErrorBody;
@@ -121,6 +166,9 @@ export function getApiOtpRetryAfterSec(error: unknown): number | null {
 }
 
 export function getApiErrorMessage(error: unknown): string {
+  if (isRequestAborted(error)) {
+    return '';
+  }
   if (error instanceof ApiError) {
     return error.message;
   }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { IconBadge } from '@/components/ui/icon-badge';
 import { SectionHeader } from '@/components/ui/section-header';
 import { useTheme } from '@/theme';
+import { useScreenLoad } from '@/hooks/use-screen-load';
 import { getApiErrorMessage } from '@/lib/api';
 import { applyForSeat, getMyApplicationStatus } from '@/lib/services/student.service';
 import type { SeatApplication } from '@/lib/types';
@@ -17,15 +18,19 @@ export default function AdmissionScreen() {
   const { user } = useAuth();
   const { colors } = useTheme();
   const [application, setApplication] = useState<SeatApplication | null>(null);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    getMyApplicationStatus()
-      .then((data) => setApplication(data))
-      .catch(() => setApplication(null))
-      .finally(() => setLoading(false));
-  }, []);
+  const { loading } = useScreenLoad(
+    useCallback(async () => {
+      try {
+        const data = await getMyApplicationStatus();
+        setApplication(data);
+      } catch {
+        setApplication(null);
+      }
+    }, []),
+    [],
+  );
 
   const handleApply = async () => {
     if (!user?.academicDepartment || !user.session) {

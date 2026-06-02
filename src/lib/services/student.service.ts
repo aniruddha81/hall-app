@@ -1,5 +1,10 @@
 import { apiRequest } from '@/lib/api';
 import { appendImageToFormData } from '@/lib/multipart';
+import {
+  getDuePaymentReturnUrl,
+  openPaymentGateway,
+  type PaymentGatewayOutcome,
+} from '@/lib/payment-gateway';
 import type {
   AcademicDepartment,
   FinancePaymentMethod,
@@ -68,10 +73,14 @@ export async function getMyDues() {
   };
 }
 
+export type PayMyDueResult =
+  | { kind: 'immediate' }
+  | { kind: 'gateway'; outcome: PaymentGatewayOutcome };
+
 export async function payMyDue(
   dueId: string,
   data: { method: FinancePaymentMethod; receiptUri?: string | null },
-) {
+): Promise<PayMyDueResult> {
   if (data.method === 'BANK') {
     if (!data.receiptUri) {
       throw new Error('Bank receipt image is required for BANK payments');
@@ -80,16 +89,19 @@ export async function payMyDue(
     formData.append('method', data.method);
     appendImageToFormData(formData, 'receiptImage', data.receiptUri);
 
-    const { data: res } = await apiRequest(`/finance/my-dues/pay/${dueId}`, {
+    await apiRequest(`/finance/my-dues/pay/${dueId}`, {
       method: 'POST',
       formData,
     });
-    return res;
+    return { kind: 'immediate' };
   }
 
   const { data: res } = await apiRequest(`/finance/my-dues/pay/${dueId}`, {
     method: 'POST',
-    body: { method: data.method },
+    body: {
+      method: data.method,
+      returnUrl: getDuePaymentReturnUrl(),
+    },
   });
 
   const payload = res.data;
@@ -99,11 +111,14 @@ export async function payMyDue(
     'gatewayUrl' in payload &&
     typeof (payload as { gatewayUrl: string }).gatewayUrl === 'string'
   ) {
-    const { openBrowserAsync } = await import('expo-web-browser');
-    await openBrowserAsync((payload as { gatewayUrl: string }).gatewayUrl);
+    const outcome = await openPaymentGateway(
+      (payload as { gatewayUrl: string }).gatewayUrl,
+      getDuePaymentReturnUrl(),
+    );
+    return { kind: 'gateway', outcome };
   }
 
-  return res;
+  return { kind: 'immediate' };
 }
 
 export async function reportDamage(data: {

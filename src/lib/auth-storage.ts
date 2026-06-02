@@ -5,15 +5,25 @@ import type { StudentData } from '@/lib/types';
 const SESSION_KEY = 'ruet_session_id';
 const USER_KEY = 'ruet_student_user';
 
+/** In-memory cache avoids hammering SecureStore on parallel API calls. */
+let cachedSessionId: string | null | undefined;
+
 export async function saveSessionId(sessionId: string): Promise<void> {
+  cachedSessionId = sessionId;
   await SecureStore.setItemAsync(SESSION_KEY, sessionId);
 }
 
 export async function getSessionId(): Promise<string | null> {
-  return SecureStore.getItemAsync(SESSION_KEY);
+  if (cachedSessionId !== undefined) {
+    return cachedSessionId;
+  }
+  const value = await SecureStore.getItemAsync(SESSION_KEY);
+  cachedSessionId = value;
+  return value;
 }
 
 export async function clearSessionId(): Promise<void> {
+  cachedSessionId = null;
   await SecureStore.deleteItemAsync(SESSION_KEY);
 }
 

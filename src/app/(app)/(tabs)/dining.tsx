@@ -1,6 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
 import { Screen } from "@/components/screen";
@@ -10,7 +11,9 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { IconBadge } from "@/components/ui/icon-badge";
 import { SectionHeader } from "@/components/ui/section-header";
+import { useScreenLoad } from "@/hooks/use-screen-load";
 import { getApiErrorMessage } from "@/lib/api";
+import { paymentOutcomeMessage } from "@/lib/payment-gateway";
 import {
   bookMealTokens,
   cancelMealToken,
@@ -25,39 +28,53 @@ import {
 } from "@/lib/types";
 import { useTheme } from "@/theme";
 
+type PaymentNotice = { type: "success" | "error"; message: string };
+
 export default function DiningScreen() {
   const { colors, spacing, radius, resolvedTheme } = useTheme();
+  const searchParams = useLocalSearchParams<{
+    payment?: string;
+    tran_id?: string;
+  }>();
   const [menus, setMenus] = useState<{ lunch: MealMenu[]; dinner: MealMenu[] }>(
     { lunch: [], dinner: [] },
   );
   const [tokens, setTokens] = useState<MealToken[]>([]);
-  const [loading, setLoading] = useState(true);
   const [bookingMenuId, setBookingMenuId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("BKASH");
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [paymentNotice, setPaymentNotice] = useState<PaymentNotice | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
+  const { loading, error, setError, reload } = useScreenLoad(
+    useCallback(async () => {
       const [menusRes, tokensRes] = await Promise.all([
         getTomorrowMenus(),
         getMyActiveTokens(),
       ]);
       setMenus(menusRes.menus);
       setTokens(tokensRes.tokens);
-    } catch (err) {
-      setError(getApiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+    }, []),
+    [],
+  );
 
   useEffect(() => {
-    void load();
-  }, []);
+    const payment = searchParams.payment;
+    if (
+      payment !== "success" &&
+      payment !== "failed" &&
+      payment !== "cancelled"
+    ) {
+      return;
+    }
+    setPaymentNotice({
+      type: payment === "success" ? "success" : "error",
+      message: paymentOutcomeMessage(payment),
+    });
+    router.setParams({ payment: undefined, tran_id: undefined });
+    void reload();
+  }, [searchParams.payment, reload]);
 
   const pickReceipt = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -77,16 +94,24 @@ export default function DiningScreen() {
   const handleBook = async (menuId: string) => {
     setSubmitting(true);
     setError(null);
+    setPaymentNotice(null);
     try {
-      await bookMealTokens({
+      const result = await bookMealTokens({
         menuId,
         quantity,
         paymentMethod,
         receiptUri: paymentMethod === "BANK" ? receiptUri : null,
       });
-      Alert.alert("Success", "Meal token booked successfully");
+      if (result.kind === "gateway") {
+        setPaymentNotice({
+          type: result.outcome === "success" ? "success" : "error",
+          message: paymentOutcomeMessage(result.outcome),
+        });
+      } else {
+        Alert.alert("Success", "Meal token booked successfully");
+      }
       setBookingMenuId(null);
-      await load();
+      await reload();
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -97,7 +122,7 @@ export default function DiningScreen() {
   const handleCancel = async (tokenId: string) => {
     try {
       await cancelMealToken(tokenId);
-      await load();
+      await reload();
     } catch (err) {
       Alert.alert("Error", getApiErrorMessage(err));
     }
@@ -225,6 +250,36 @@ export default function DiningScreen() {
       subtitle="Book tomorrow's meal tokens"
       loading={loading}
     >
+      {paymentNotice ? (
+        <View
+          style={[
+            styles.errorBox,
+            {
+              backgroundColor:
+                paymentNotice.type === "success"
+                  ? `${colors.success}14`
+                  : `${colors.error}14`,
+              borderColor:
+                paymentNotice.type === "success"
+                  ? `${colors.success}30`
+                  : `${colors.error}30`,
+            },
+          ]}
+        >
+          <ThemedText
+            type="small"
+            style={{
+              color:
+                paymentNotice.type === "success"
+                  ? colors.success
+                  : colors.error,
+            }}
+          >
+            {paymentNotice.message}
+          </ThemedText>
+        </View>
+      ) : null}
+
       {error ? (
         <View
           style={[

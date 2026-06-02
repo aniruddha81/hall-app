@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
@@ -16,7 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/theme';
 import { getMyActiveTokens, getTomorrowMenus } from '@/lib/services/dining.service';
 import type { MealMenu, MealToken } from '@/lib/types';
-import { getApiErrorMessage } from '@/lib/api';
+import { useScreenLoad } from '@/hooks/use-screen-load';
 
 function formatHall(hall: string | null) {
   return hall?.replace(/_/g, ' ') ?? 'Not assigned';
@@ -27,24 +27,17 @@ export default function DashboardScreen() {
   const { colors, spacing, radius } = useTheme();
   const [menus, setMenus] = useState<{ lunch: MealMenu[]; dinner: MealMenu[] }>({ lunch: [], dinner: [] });
   const [tokens, setTokens] = useState<MealToken[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadData = async () => {
-    try {
-      const [menusRes, tokensRes] = await Promise.allSettled([getTomorrowMenus(), getMyActiveTokens()]);
+  const { loading, error } = useScreenLoad(
+    useCallback(async () => {
+      const [menusRes, tokensRes] = await Promise.allSettled([
+        getTomorrowMenus(),
+        getMyActiveTokens(),
+      ]);
       if (menusRes.status === 'fulfilled') setMenus(menusRes.value.menus);
       if (tokensRes.status === 'fulfilled') setTokens(tokensRes.value.tokens);
-    } catch (err) {
-      setError(getApiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadData();
-  }, []);
+    }, []),
+    [],
+  );
 
   const allMenus = [...menus.lunch, ...menus.dinner];
 

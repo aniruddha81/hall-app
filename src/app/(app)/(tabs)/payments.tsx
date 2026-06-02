@@ -1,5 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
 import { GradientHeader } from "@/components/gradient-header";
@@ -10,7 +11,9 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { IconBadge } from "@/components/ui/icon-badge";
 import { SectionHeader } from "@/components/ui/section-header";
+import { useScreenLoad } from "@/hooks/use-screen-load";
 import { getApiErrorMessage } from "@/lib/api";
+import { paymentOutcomeMessage } from "@/lib/payment-gateway";
 import { getMyDues, payMyDue } from "@/lib/services/student.service";
 import {
   FINANCE_PAYMENT_METHODS,
@@ -19,32 +22,46 @@ import {
 } from "@/lib/types";
 import { useTheme } from "@/theme";
 
+type PaymentNotice = { type: "success" | "error"; message: string };
+
 export default function PaymentsScreen() {
   const { colors, spacing, radius, typography } = useTheme();
+  const searchParams = useLocalSearchParams<{
+    payment?: string;
+    tran_id?: string;
+  }>();
   const [dues, setDues] = useState<StudentDue[]>([]);
   const [totalUnpaid, setTotalUnpaid] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [method, setMethod] = useState<FinancePaymentMethod>("ONLINE");
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [paymentNotice, setPaymentNotice] = useState<PaymentNotice | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
+  const { loading, error, setError, reload } = useScreenLoad(
+    useCallback(async () => {
       const res = await getMyDues();
       setDues(res.dues.filter((d) => d.dueStatus === "UNPAID"));
       setTotalUnpaid(res.totalUnpaid);
-    } catch (err) {
-      setError(getApiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+    }, []),
+    [],
+  );
 
   useEffect(() => {
-    void load();
-  }, []);
+    const payment = searchParams.payment;
+    if (
+      payment !== "success" &&
+      payment !== "failed" &&
+      payment !== "cancelled"
+    ) {
+      return;
+    }
+    setPaymentNotice({
+      type: payment === "success" ? "success" : "error",
+      message: paymentOutcomeMessage(payment),
+    });
+    router.setParams({ payment: undefined, tran_id: undefined });
+    void reload();
+  }, [searchParams.payment, reload]);
 
   const pickReceipt = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -58,20 +75,23 @@ export default function PaymentsScreen() {
   const handlePay = async (dueId: string) => {
     setPayingId(dueId);
     setError(null);
+    setPaymentNotice(null);
     try {
-      await payMyDue(dueId, {
+      const result = await payMyDue(dueId, {
         method,
         receiptUri: method === "BANK" ? receiptUri : null,
       });
-      Alert.alert(
-        "Success",
-        method === "ONLINE"
-          ? "Complete payment in your browser"
-          : "Bank deposit submitted for verification",
-      );
+      if (result.kind === "gateway") {
+        setPaymentNotice({
+          type: result.outcome === "success" ? "success" : "error",
+          message: paymentOutcomeMessage(result.outcome),
+        });
+      } else if (method === "BANK") {
+        Alert.alert("Success", "Bank deposit submitted for verification");
+      }
       setPayingId(null);
       setReceiptUri(null);
-      await load();
+      await reload();
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -109,6 +129,36 @@ export default function PaymentsScreen() {
 
   return (
     <Screen header={header} overlap={24} loading={loading}>
+      {paymentNotice ? (
+        <View
+          style={[
+            styles.errorBox,
+            {
+              backgroundColor:
+                paymentNotice.type === "success"
+                  ? `${colors.success}14`
+                  : `${colors.error}14`,
+              borderColor:
+                paymentNotice.type === "success"
+                  ? `${colors.success}30`
+                  : `${colors.error}30`,
+            },
+          ]}
+        >
+          <ThemedText
+            type="small"
+            style={{
+              color:
+                paymentNotice.type === "success"
+                  ? colors.success
+                  : colors.error,
+            }}
+          >
+            {paymentNotice.message}
+          </ThemedText>
+        </View>
+      ) : null}
+
       {error ? (
         <View
           style={[
