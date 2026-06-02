@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
@@ -8,29 +8,25 @@ import { Card } from '@/components/ui/card';
 import { IconBadge } from '@/components/ui/icon-badge';
 import { SectionHeader } from '@/components/ui/section-header';
 import { useTheme } from '@/theme';
-import { useScreenLoad } from '@/hooks/use-screen-load';
+import {
+  useInvalidateStudentQueries,
+  useMyApplicationQuery,
+} from '@/hooks/queries/student';
 import { getApiErrorMessage } from '@/lib/api';
-import { applyForSeat, getMyApplicationStatus } from '@/lib/services/student.service';
+import { applyForSeat } from '@/lib/services/student.service';
 import type { SeatApplication } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 export default function AdmissionScreen() {
   const { user } = useAuth();
   const { colors } = useTheme();
-  const [application, setApplication] = useState<SeatApplication | null>(null);
+  const applicationQuery = useMyApplicationQuery();
+  const invalidateStudent = useInvalidateStudentQueries();
+  const application = applicationQuery.data ?? null;
+  const loading = applicationQuery.isLoading && applicationQuery.data === undefined;
+  const { onRefresh, refreshing } = usePullToRefresh(() => applicationQuery.refetch());
   const [submitting, setSubmitting] = useState(false);
-
-  const { loading } = useScreenLoad(
-    useCallback(async () => {
-      try {
-        const data = await getMyApplicationStatus();
-        setApplication(data);
-      } catch {
-        setApplication(null);
-      }
-    }, []),
-    [],
-  );
 
   const handleApply = async () => {
     if (!user?.academicDepartment || !user.session) {
@@ -43,7 +39,7 @@ export default function AdmissionScreen() {
         academicDepartment: user.academicDepartment,
         session: user.session,
       });
-      setApplication(res.data);
+      await invalidateStudent();
       Alert.alert(
         'Submitted',
         'Your seat application was sent to DSW for review.',
@@ -84,7 +80,13 @@ export default function AdmissionScreen() {
     application?.createdAt ?? application?.appliedAt ?? null;
 
   return (
-    <Screen title="Seat Application" loading={loading} withBackButton>
+    <Screen
+      title="Seat Application"
+      loading={loading}
+      withBackButton
+      onRefresh={onRefresh}
+      refreshing={refreshing}
+    >
       {application ? (
         <>
           {(() => {

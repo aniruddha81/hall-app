@@ -1,6 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
 import { GradientHeader } from "@/components/gradient-header";
@@ -11,15 +11,18 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { IconBadge } from "@/components/ui/icon-badge";
 import { SectionHeader } from "@/components/ui/section-header";
-import { useScreenLoad } from "@/hooks/use-screen-load";
+import {
+  useInvalidateStudentQueries,
+  useMyDuesQuery,
+} from "@/hooks/queries/student";
 import { getApiErrorMessage } from "@/lib/api";
 import { paymentOutcomeMessage } from "@/lib/payment-gateway";
-import { getMyDues, payMyDue } from "@/lib/services/student.service";
+import { payMyDue } from "@/lib/services/student.service";
 import {
   FINANCE_PAYMENT_METHODS,
   type FinancePaymentMethod,
-  type StudentDue,
 } from "@/lib/types";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { useTheme } from "@/theme";
 
 type PaymentNotice = { type: "success" | "error"; message: string };
@@ -30,21 +33,26 @@ export default function PaymentsScreen() {
     payment?: string;
     tran_id?: string;
   }>();
-  const [dues, setDues] = useState<StudentDue[]>([]);
-  const [totalUnpaid, setTotalUnpaid] = useState(0);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [method, setMethod] = useState<FinancePaymentMethod>("ONLINE");
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [paymentNotice, setPaymentNotice] = useState<PaymentNotice | null>(null);
 
-  const { loading, error, setError, reload } = useScreenLoad(
-    useCallback(async () => {
-      const res = await getMyDues();
-      setDues(res.dues.filter((d) => d.dueStatus === "UNPAID"));
-      setTotalUnpaid(res.totalUnpaid);
-    }, []),
-    [],
+  const duesQuery = useMyDuesQuery();
+  const invalidateStudent = useInvalidateStudentQueries();
+  const unpaidDues = (duesQuery.data?.dues ?? []).filter(
+    (d) => d.dueStatus === "UNPAID",
   );
+  const totalUnpaid = duesQuery.data?.totalUnpaid ?? 0;
+  const loading = duesQuery.isLoading && !duesQuery.data;
+  const [error, setError] = useState<string | null>(null);
+  const queryError = duesQuery.error;
+
+  const reload = async () => {
+    await duesQuery.refetch();
+  };
+
+  const { onRefresh, refreshing } = usePullToRefresh(reload);
 
   useEffect(() => {
     const payment = searchParams.payment;
@@ -91,7 +99,7 @@ export default function PaymentsScreen() {
       }
       setPayingId(null);
       setReceiptUri(null);
-      await reload();
+      await invalidateStudent();
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -115,7 +123,7 @@ export default function PaymentsScreen() {
             type="smallBold"
             style={{ color: "#FFFFFF", fontSize: 12 }}
           >
-            {dues.length} Outstanding Due{dues.length === 1 ? "" : "s"}
+            {unpaidDues.length} Outstanding Due{unpaidDues.length === 1 ? "" : "s"}
           </ThemedText>
         </View>
       </View>
@@ -128,7 +136,13 @@ export default function PaymentsScreen() {
   );
 
   return (
-    <Screen header={header} overlap={24} loading={loading}>
+    <Screen
+      header={header}
+      overlap={24}
+      loading={loading}
+      onRefresh={onRefresh}
+      refreshing={refreshing}
+    >
       {paymentNotice ? (
         <View
           style={[
@@ -159,7 +173,7 @@ export default function PaymentsScreen() {
         </View>
       ) : null}
 
-      {error ? (
+      {(error || queryError) ? (
         <View
           style={[
             styles.errorBox,
@@ -170,7 +184,7 @@ export default function PaymentsScreen() {
           ]}
         >
           <ThemedText type="small" style={{ color: colors.error }}>
-            {error}
+            {error || queryError}
           </ThemedText>
         </View>
       ) : null}
@@ -179,7 +193,7 @@ export default function PaymentsScreen() {
         <SectionHeader title="Unpaid Dues" />
       </View>
 
-      {dues.length === 0 ? (
+      {unpaidDues.length === 0 ? (
         /* Premium Centered Empty State */
         <View
           style={[
@@ -211,7 +225,7 @@ export default function PaymentsScreen() {
         </View>
       ) : (
         <View style={[styles.list, { gap: spacing.md }]}>
-          {dues.map((due) => {
+          {unpaidDues.map((due) => {
             const open = payingId === due.id;
             return (
               <Card key={due.id} style={styles.dueCard}>

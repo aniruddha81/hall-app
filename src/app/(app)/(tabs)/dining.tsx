@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
 import { Screen } from "@/components/screen";
@@ -11,15 +11,15 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { IconBadge } from "@/components/ui/icon-badge";
 import { SectionHeader } from "@/components/ui/section-header";
-import { useScreenLoad } from "@/hooks/use-screen-load";
+import {
+  useActiveMealTokensQuery,
+  useInvalidateDiningQueries,
+  useTomorrowMenusQuery,
+} from "@/hooks/queries/dining";
+import { refetchQueries, usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { getApiErrorMessage } from "@/lib/api";
 import { paymentOutcomeMessage } from "@/lib/payment-gateway";
-import {
-  bookMealTokens,
-  cancelMealToken,
-  getMyActiveTokens,
-  getTomorrowMenus,
-} from "@/lib/services/dining.service";
+import { bookMealTokens, cancelMealToken } from "@/lib/services/dining.service";
 import {
   PAYMENT_METHODS,
   type MealMenu,
@@ -36,10 +36,6 @@ export default function DiningScreen() {
     payment?: string;
     tran_id?: string;
   }>();
-  const [menus, setMenus] = useState<{ lunch: MealMenu[]; dinner: MealMenu[] }>(
-    { lunch: [], dinner: [] },
-  );
-  const [tokens, setTokens] = useState<MealToken[]>([]);
   const [bookingMenuId, setBookingMenuId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("BKASH");
@@ -47,17 +43,22 @@ export default function DiningScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [paymentNotice, setPaymentNotice] = useState<PaymentNotice | null>(null);
 
-  const { loading, error, setError, reload } = useScreenLoad(
-    useCallback(async () => {
-      const [menusRes, tokensRes] = await Promise.all([
-        getTomorrowMenus(),
-        getMyActiveTokens(),
-      ]);
-      setMenus(menusRes.menus);
-      setTokens(tokensRes.tokens);
-    }, []),
-    [],
-  );
+  const menusQuery = useTomorrowMenusQuery();
+  const tokensQuery = useActiveMealTokensQuery();
+  const invalidateDining = useInvalidateDiningQueries();
+  const menus = menusQuery.data?.menus ?? { lunch: [], dinner: [] };
+  const tokens = tokensQuery.data?.tokens ?? [];
+  const loading =
+    (menusQuery.isLoading && !menusQuery.data) ||
+    (tokensQuery.isLoading && !tokensQuery.data);
+  const [error, setError] = useState<string | null>(null);
+  const queryError = menusQuery.error || tokensQuery.error;
+
+  const reload = async () => {
+    await refetchQueries(menusQuery.refetch, tokensQuery.refetch);
+  };
+
+  const { onRefresh, refreshing } = usePullToRefresh(reload);
 
   useEffect(() => {
     const payment = searchParams.payment;
@@ -111,7 +112,7 @@ export default function DiningScreen() {
         Alert.alert("Success", "Meal token booked successfully");
       }
       setBookingMenuId(null);
-      await reload();
+      await invalidateDining();
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -122,7 +123,7 @@ export default function DiningScreen() {
   const handleCancel = async (tokenId: string) => {
     try {
       await cancelMealToken(tokenId);
-      await reload();
+      await invalidateDining();
     } catch (err) {
       Alert.alert("Error", getApiErrorMessage(err));
     }
@@ -249,6 +250,8 @@ export default function DiningScreen() {
       title="Dining Panel"
       subtitle="Book tomorrow's meal tokens"
       loading={loading}
+      onRefresh={onRefresh}
+      refreshing={refreshing}
     >
       {paymentNotice ? (
         <View
@@ -280,7 +283,7 @@ export default function DiningScreen() {
         </View>
       ) : null}
 
-      {error ? (
+      {(error || queryError) ? (
         <View
           style={[
             styles.errorBox,
@@ -291,7 +294,7 @@ export default function DiningScreen() {
           ]}
         >
           <ThemedText type="small" style={{ color: colors.error }}>
-            {error}
+            {error || queryError}
           </ThemedText>
         </View>
       ) : null}

@@ -1,4 +1,4 @@
-import { apiRequest } from '@/lib/api';
+import { apiRequest, type ApiFetchOptions } from '@/lib/api';
 import { appendImageToFormData } from '@/lib/multipart';
 import type { MealMenu, MealToken, PaymentMethod } from '@/lib/types';
 import {
@@ -24,9 +24,10 @@ function mapMealToken(raw: RawMealToken): MealToken {
   };
 }
 
-export async function getTomorrowMenus() {
+export async function getTomorrowMenus(options?: ApiFetchOptions) {
   const { data: res } = await apiRequest<{ lunch?: MealMenu[]; dinner?: MealMenu[] }>(
     '/dining/tomorrow-menus',
+    { signal: options?.signal },
   );
   return {
     menus: {
@@ -36,8 +37,10 @@ export async function getTomorrowMenus() {
   };
 }
 
-export async function getMyActiveTokens() {
-  const { data: res } = await apiRequest<{ tokens: RawMealToken[] }>('/dining/my-active-tokens');
+export async function getMyActiveTokens(options?: ApiFetchOptions) {
+  const { data: res } = await apiRequest<{ tokens: RawMealToken[] }>('/dining/my-active-tokens', {
+    signal: options?.signal,
+  });
   return { tokens: (res.data?.tokens ?? []).map(mapMealToken) };
 }
 

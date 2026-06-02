@@ -3,14 +3,20 @@ import * as WebBrowser from 'expo-web-browser';
 
 export type PaymentGatewayOutcome = 'success' | 'failed' | 'cancelled' | 'dismissed';
 
-/** Deep link SSLCommerz should return to after due payment (matches expo-router). */
+/** Deep link SSLCommerz should return to after due payment (expo-router path, no groups). */
 export function getDuePaymentReturnUrl(): string {
-  return Linking.createURL('/(app)/(tabs)/payments');
+  return Linking.createURL('/payments');
 }
 
 /** Deep link after meal-token SSLCommerz checkout. */
 export function getMealPaymentReturnUrl(): string {
-  return Linking.createURL('/(app)/(tabs)/dining');
+  return Linking.createURL('/dining');
+}
+
+/** Prefix passed to openAuthSessionAsync so any path under the app scheme closes the browser. */
+function getAuthSessionRedirectPrefix(returnUrl: string): string {
+  const match = returnUrl.match(/^([a-z][a-z0-9+.-]*):\/\//i);
+  return match ? `${match[1]}://` : returnUrl;
 }
 
 export function parsePaymentReturnUrl(
@@ -38,7 +44,10 @@ export async function openPaymentGateway(
 ): Promise<PaymentGatewayOutcome> {
   WebBrowser.maybeCompleteAuthSession();
 
-  const result = await WebBrowser.openAuthSessionAsync(gatewayUrl, returnUrl);
+  const result = await WebBrowser.openAuthSessionAsync(
+    gatewayUrl,
+    getAuthSessionRedirectPrefix(returnUrl),
+  );
 
   if (result.type === 'success' && result.url) {
     const parsed = parsePaymentReturnUrl(result.url);

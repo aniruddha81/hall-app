@@ -1,5 +1,4 @@
 import { router } from 'expo-router';
-import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
@@ -14,9 +13,11 @@ import { StatTile } from '@/components/ui/stat-tile';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/theme';
-import { getMyActiveTokens, getTomorrowMenus } from '@/lib/services/dining.service';
-import type { MealMenu, MealToken } from '@/lib/types';
-import { useScreenLoad } from '@/hooks/use-screen-load';
+import {
+  useActiveMealTokensQuery,
+  useTomorrowMenusQuery,
+} from '@/hooks/queries/dining';
+import { refetchQueries, usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 function formatHall(hall: string | null) {
   return hall?.replace(/_/g, ' ') ?? 'Not assigned';
@@ -25,18 +26,16 @@ function formatHall(hall: string | null) {
 export default function DashboardScreen() {
   const { user } = useAuth();
   const { colors, spacing, radius } = useTheme();
-  const [menus, setMenus] = useState<{ lunch: MealMenu[]; dinner: MealMenu[] }>({ lunch: [], dinner: [] });
-  const [tokens, setTokens] = useState<MealToken[]>([]);
-  const { loading, error } = useScreenLoad(
-    useCallback(async () => {
-      const [menusRes, tokensRes] = await Promise.allSettled([
-        getTomorrowMenus(),
-        getMyActiveTokens(),
-      ]);
-      if (menusRes.status === 'fulfilled') setMenus(menusRes.value.menus);
-      if (tokensRes.status === 'fulfilled') setTokens(tokensRes.value.tokens);
-    }, []),
-    [],
+  const menusQuery = useTomorrowMenusQuery();
+  const tokensQuery = useActiveMealTokensQuery();
+  const menus = menusQuery.data?.menus ?? { lunch: [], dinner: [] };
+  const tokens = tokensQuery.data?.tokens ?? [];
+  const loading =
+    (menusQuery.isLoading && !menusQuery.data) ||
+    (tokensQuery.isLoading && !tokensQuery.data);
+  const error = menusQuery.error || tokensQuery.error;
+  const { onRefresh, refreshing } = usePullToRefresh(() =>
+    refetchQueries(menusQuery.refetch, tokensQuery.refetch),
   );
 
   const allMenus = [...menus.lunch, ...menus.dinner];
@@ -84,7 +83,12 @@ export default function DashboardScreen() {
   );
 
   return (
-    <Screen header={header} overlap={28} loading={loading}>
+    <Screen
+      header={header}
+      overlap={28}
+      loading={loading}
+      onRefresh={onRefresh}
+      refreshing={refreshing}>
       {error ? (
         <View style={[styles.errorBox, { backgroundColor: `${colors.error}14`, borderColor: `${colors.error}30` }]}>
           <ThemedText type="small" style={{ color: colors.error }}>

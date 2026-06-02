@@ -12,10 +12,14 @@ import { IconBadge } from '@/components/ui/icon-badge';
 import { Input } from '@/components/ui/input';
 import { SectionHeader } from '@/components/ui/section-header';
 import { useTheme } from '@/theme';
+import { useAuth } from '@/contexts/AuthContext';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { getApiErrorMessage } from '@/lib/api';
 import { reportDamage } from '@/lib/services/student.service';
 
 export default function ReportDamageScreen() {
+  const { refreshProfile } = useAuth();
+  const { onRefresh, refreshing } = usePullToRefresh(refreshProfile);
   const { colors, spacing, radius } = useTheme();
   const [locationDescription, setLocationDescription] = useState('');
   const [assetDetails, setAssetDetails] = useState('');
@@ -49,7 +53,13 @@ export default function ReportDamageScreen() {
   };
 
   return (
-    <Screen title="Report Damage" subtitle="Submit an inventory complaint" withBackButton>
+    <Screen
+      title="Report Damage"
+      subtitle="Submit an inventory complaint"
+      withBackButton
+      onRefresh={onRefresh}
+      refreshing={refreshing}
+    >
       <Card style={[styles.banner, { backgroundColor: `${colors.error}0D`, borderColor: colors.error, borderWidth: 1 }]}>
         <IconBadge name="report-problem" color={colors.error} background="transparent" size={32} />
         <ThemedText type="small" style={{ flex: 1, color: colors.textSecondary }}>

@@ -1,4 +1,4 @@
-import { apiRequest } from '@/lib/api';
+import { apiRequest, type ApiFetchOptions } from '@/lib/api';
 import { appendImageToFormData } from '@/lib/multipart';
 import {
   getDuePaymentReturnUrl,
@@ -58,14 +58,17 @@ export async function applyForSeat(data: {
   return res;
 }
 
-export async function getMyApplicationStatus() {
-  const { data: res } = await apiRequest<RawSeatApplication | null>('/admission/my-status');
+export async function getMyApplicationStatus(options?: ApiFetchOptions) {
+  const { data: res } = await apiRequest<RawSeatApplication | null>('/admission/my-status', {
+    signal: options?.signal,
+  });
   return res.data ? mapApplication(res.data) : null;
 }
 
-export async function getMyDues() {
+export async function getMyDues(options?: ApiFetchOptions) {
   const { data: res } = await apiRequest<{ dues: RawStudentDue[]; totalUnpaid: number }>(
     '/finance/my-dues',
+    { signal: options?.signal },
   );
   return {
     dues: (res.data?.dues ?? []).map(mapDue),

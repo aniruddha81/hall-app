@@ -67,11 +67,11 @@ export async function logoutAll() {
 }
 
 export async function deleteStudentAccount(data: { password: string }) {
-  const { data } = await apiRequest<null>('/auth/delete-account', {
+  const { data: res } = await apiRequest<null>('/auth/delete-account', {
     method: 'POST',
     body: data,
   });
-  return data;
+  return res;
 }
 
 export async function getAcademicSessions() {

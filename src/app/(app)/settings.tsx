@@ -10,6 +10,7 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { useTheme } from '@/theme';
 import type { ThemePreference } from '@/theme';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { getApiErrorMessage } from '@/lib/api';
 import { deleteStudentAccount, logoutAll } from '@/lib/services/auth.service';
 
@@ -95,7 +96,8 @@ function ThemeOptionCard({
 const DELETE_CONFIRM_PHRASE = 'DELETE';
 
 export default function SettingsScreen() {
-  const { logout } = useAuth();
+  const { logout, refreshProfile } = useAuth();
+  const { onRefresh, refreshing } = usePullToRefresh(refreshProfile);
   const { preference, setPreference, colors, spacing } = useTheme();
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -140,7 +142,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <Screen title="Settings" withBackButton>
+    <Screen title="Settings" withBackButton onRefresh={onRefresh} refreshing={refreshing}>
       <SectionHeader title="Appearance" caption="Pick how the application looks" />
       <View style={[styles.themeRow, { gap: spacing.sm }]}>
         {THEME_OPTIONS.map((opt) => (

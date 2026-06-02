@@ -14,11 +14,13 @@ import { ListRow } from '@/components/ui/list-row';
 import { SectionHeader } from '@/components/ui/section-header';
 import { useTheme } from '@/theme';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { getApiErrorMessage } from '@/lib/api';
 import { changePassword, updateProfile, uploadAvatar } from '@/lib/services/auth.service';
 
 export default function ProfileScreen() {
   const { user, logout, refreshProfile, setUser } = useAuth();
+  const { onRefresh, refreshing } = usePullToRefresh(refreshProfile);
   const { colors, spacing, radius } = useTheme();
   const [name, setName] = useState(user?.name ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
@@ -137,7 +139,7 @@ export default function ProfileScreen() {
   );
 
   return (
-    <Screen header={header} overlap={20}>
+    <Screen header={header} overlap={20} onRefresh={onRefresh} refreshing={refreshing}>
       {error ? (
         <View style={[styles.errorBox, { backgroundColor: `${colors.error}14`, borderColor: `${colors.error}30` }]}>
           <ThemedText type="small" style={{ color: colors.error }}>

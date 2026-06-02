@@ -17,6 +17,7 @@ import {
   saveUser,
 } from '@/lib/auth-storage';
 import { resolveRemoteImageUrl } from '@/lib/media';
+import { queryClient } from '@/lib/query-client';
 import { getMyProfile, logout as logoutApi, studentLogin } from '@/lib/services/auth.service';
 import type { StudentData } from '@/lib/types';
 
@@ -55,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clear local state even if backend fails
     }
     await clearAuthStorage();
+    queryClient.clear();
     setUserState(null);
     router.replace('/login');
   }, []);
@@ -102,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       const res = await studentLogin({ email, password });
+      queryClient.clear();
       setUser(res.data.student_data);
       router.replace('/(app)/(tabs)');
     },
