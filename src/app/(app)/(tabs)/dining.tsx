@@ -1,8 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 
 import { Screen } from "@/components/screen";
 import { ThemedText } from "@/components/themed-text";
@@ -12,23 +12,47 @@ import { Chip } from "@/components/ui/chip";
 import { IconBadge } from "@/components/ui/icon-badge";
 import { SectionHeader } from "@/components/ui/section-header";
 import {
+  refetchDiningAfterPayment,
   useActiveMealTokensQuery,
-  useInvalidateDiningQueries,
   useTomorrowMenusQuery,
 } from "@/hooks/queries/dining";
 import { refetchQueries, usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { getApiErrorMessage } from "@/lib/api";
+import {
+  formatHallLabel,
+  getHallsWithTomorrowMenus,
+  getMealTypesForHall,
+  getMenuForHallAndMeal,
+  type MealBookingStep,
+} from "@/lib/dining-booking";
 import { paymentOutcomeMessage } from "@/lib/payment-gateway";
 import { bookMealTokens, cancelMealToken } from "@/lib/services/dining.service";
 import {
   PAYMENT_METHODS,
-  type MealMenu,
-  type MealToken,
+  type Hall,
+  type MealType,
   type PaymentMethod,
 } from "@/lib/types";
 import { useTheme } from "@/theme";
 
 type PaymentNotice = { type: "success" | "error"; message: string };
+
+type MenuBookingOptions = {
+  quantity: number;
+  paymentMethod: PaymentMethod;
+  receiptUri: string | null;
+};
+
+const DEFAULT_BOOKING: MenuBookingOptions = {
+  quantity: 1,
+  paymentMethod: "BKASH",
+  receiptUri: null,
+};
+
+const MEAL_TYPE_LABELS: Record<MealType, string> = {
+  LUNCH: "Lunch",
+  DINNER: "Dinner",
+};
 
 export default function DiningScreen() {
   const { colors, spacing, radius, resolvedTheme } = useTheme();
@@ -36,18 +60,32 @@ export default function DiningScreen() {
     payment?: string;
     tran_id?: string;
   }>();
+  const [bookingStep, setBookingStep] = useState<MealBookingStep>("hall");
+  const [selectedHall, setSelectedHall] = useState<Hall | null>(null);
+  const [bookingState, setBookingState] = useState<
+    Record<string, MenuBookingOptions>
+  >({});
   const [bookingMenuId, setBookingMenuId] = useState<string | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("BKASH");
-  const [receiptUri, setReceiptUri] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [paymentNotice, setPaymentNotice] = useState<PaymentNotice | null>(null);
 
   const menusQuery = useTomorrowMenusQuery();
   const tokensQuery = useActiveMealTokensQuery();
-  const invalidateDining = useInvalidateDiningQueries();
   const menus = menusQuery.data?.menus ?? { lunch: [], dinner: [] };
+  const hallsWithMenus = getHallsWithTomorrowMenus(menus);
   const tokens = tokensQuery.data?.tokens ?? [];
+
+  const getBookingOptions = (menuId: string): MenuBookingOptions =>
+    bookingState[menuId] ?? DEFAULT_BOOKING;
+
+  const updateBookingOptions = (
+    menuId: string,
+    patch: Partial<MenuBookingOptions>,
+  ) => {
+    setBookingState((prev) => ({
+      ...prev,
+      [menuId]: { ...getBookingOptions(menuId), ...patch },
+    }));
+  };
   const loading =
     (menusQuery.isLoading && !menusQuery.data) ||
     (tokensQuery.isLoading && !tokensQuery.data);
@@ -57,6 +95,10 @@ export default function DiningScreen() {
   const reload = async () => {
     await refetchQueries(menusQuery.refetch, tokensQuery.refetch);
   };
+
+  const reloadAfterPayment = useCallback(async () => {
+    await refetchDiningAfterPayment(menusQuery.refetch, tokensQuery.refetch);
+  }, [menusQuery.refetch, tokensQuery.refetch]);
 
   const { onRefresh, refreshing } = usePullToRefresh(reload);
 
@@ -74,181 +116,298 @@ export default function DiningScreen() {
       message: paymentOutcomeMessage(payment),
     });
     router.setParams({ payment: undefined, tran_id: undefined });
-    void reload();
-  }, [searchParams.payment, reload]);
+    void reloadAfterPayment();
+  }, [searchParams.payment, reloadAfterPayment]);
 
-  const pickReceipt = async () => {
+  const pickReceipt = async (menuId: string) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       quality: 0.8,
     });
-    if (!result.canceled && result.assets[0])
-      setReceiptUri(result.assets[0].uri);
+    if (!result.canceled && result.assets[0]) {
+      updateBookingOptions(menuId, { receiptUri: result.assets[0].uri });
+    }
   };
 
-  const openBooking = (menuId: string) => {
-    setBookingMenuId((prev) => (prev === menuId ? null : menuId));
-    setQuantity(1);
-    setReceiptUri(null);
+  const resetBookingWizard = () => {
+    setBookingStep("hall");
+    setSelectedHall(null);
+    setBookingState({});
+  };
+
+  const selectHall = (hall: Hall) => {
+    setSelectedHall(hall);
+    setBookingState({});
+    setBookingStep("meal");
   };
 
   const handleBook = async (menuId: string) => {
-    setSubmitting(true);
+    const options = getBookingOptions(menuId);
+    setBookingMenuId(menuId);
     setError(null);
     setPaymentNotice(null);
     try {
       const result = await bookMealTokens({
         menuId,
-        quantity,
-        paymentMethod,
-        receiptUri: paymentMethod === "BANK" ? receiptUri : null,
+        quantity: options.quantity,
+        paymentMethod: options.paymentMethod,
+        receiptUri:
+          options.paymentMethod === "BANK" ? options.receiptUri : null,
       });
       if (result.kind === "gateway") {
         setPaymentNotice({
           type: result.outcome === "success" ? "success" : "error",
           message: paymentOutcomeMessage(result.outcome),
         });
+        if (result.outcome === "success") {
+          await reloadAfterPayment();
+        } else {
+          await reload();
+        }
       } else {
         Alert.alert("Success", "Meal token booked successfully");
+        await reloadAfterPayment();
       }
-      setBookingMenuId(null);
-      await invalidateDining();
+      resetBookingWizard();
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
-      setSubmitting(false);
+      setBookingMenuId(null);
     }
   };
 
   const handleCancel = async (tokenId: string) => {
     try {
       await cancelMealToken(tokenId);
-      await invalidateDining();
+      await reload();
     } catch (err) {
       Alert.alert("Error", getApiErrorMessage(err));
     }
   };
 
-  const renderMenu = (menu: MealMenu, isDinner: boolean) => {
-    const accent = isDinner ? colors.secondary : colors.primary;
-    const tint = `${accent}1A`;
-    const open = bookingMenuId === menu.id;
-    const soldOut = menu.availableTokens <= 0;
+  const renderStepIndicator = () => (
+    <View style={[styles.stepRow, { gap: spacing.xs }]}>
+      <ThemedText
+        type="small"
+        style={{
+          color: bookingStep === "hall" ? colors.text : colors.textMuted,
+          fontWeight: bookingStep === "hall" ? "700" : "400",
+        }}
+      >
+        1. Hall
+      </ThemedText>
+      <ThemedText type="small" themeColor="textMuted">
+        →
+      </ThemedText>
+      <ThemedText
+        type="small"
+        style={{
+          color: bookingStep === "meal" ? colors.text : colors.textMuted,
+          fontWeight: bookingStep === "meal" ? "700" : "400",
+        }}
+      >
+        2. Meal & pay
+      </ThemedText>
+    </View>
+  );
 
-    return (
-      <Card key={menu.id} style={styles.menuCard}>
-        <View style={styles.menuHead}>
-          <IconBadge
-            name={isDinner ? "dinner-dining" : "lunch-dining"}
-            color={accent}
-            background={tint}
-            size={44}
-          />
-          <View style={{ flex: 1 }}>
-            <ThemedText type="subtitle" style={{ fontSize: 16 }}>
-              {menu.mealType}
-            </ThemedText>
-            <ThemedText type="small" themeColor="textMuted" numberOfLines={2}>
-              {menu.menuDescription}
-            </ThemedText>
-          </View>
-          <View
-            style={[
-              styles.priceTag,
-              { backgroundColor: tint, borderRadius: radius.full },
-            ]}
-          >
-            <ThemedText type="smallBold" style={{ color: accent }}>
-              ৳{menu.price}
-            </ThemedText>
-          </View>
-        </View>
-
-        <View style={styles.availRow}>
-          <ThemedText type="small" themeColor="textMuted">
-            {soldOut
-              ? "Sold out"
-              : `${menu.availableTokens} of ${menu.totalTokens} tokens available`}
-          </ThemedText>
-        </View>
-
-        {open ? (
-          <View style={[styles.bookForm, { gap: spacing.sm }]}>
-            <ThemedText type="overline">Select Quantity</ThemedText>
-            <View style={styles.qtyRow}>
-              <Button
-                title="−"
-                variant="outline"
-                size="sm"
-                style={styles.qtyBtn}
-                onPress={() => setQuantity((q) => Math.max(1, q - 1))}
-              />
-              <ThemedText type="subtitle" style={{ paddingHorizontal: 12 }}>
-                {quantity}
-              </ThemedText>
-              <Button
-                title="+"
-                variant="outline"
-                size="sm"
-                style={styles.qtyBtn}
-                onPress={() => setQuantity((q) => q + 1)}
-              />
-            </View>
-
-            <ThemedText type="overline">Payment Method</ThemedText>
-            <View style={styles.chips}>
-              {PAYMENT_METHODS.map((m) => (
-                <Chip
-                  key={m}
-                  label={m}
-                  selected={paymentMethod === m}
-                  onPress={() => setPaymentMethod(m)}
-                  color={accent}
+  const renderHallStep = () => (
+    <View style={[styles.list, { gap: spacing.md }]}>
+      {hallsWithMenus.map((hall) => {
+        const mealTypes = getMealTypesForHall(menus, hall);
+        return (
+          <Pressable key={hall} onPress={() => selectHall(hall)}>
+            <Card style={styles.menuCard}>
+              <View style={styles.menuHead}>
+                <IconBadge
+                  name="apartment"
+                  color={colors.primary}
+                  background={`${colors.primary}1A`}
+                  size={44}
                 />
-              ))}
-            </View>
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="subtitle" style={{ fontSize: 16 }}>
+                    {formatHallLabel(hall)}
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textMuted">
+                    {mealTypes.map((t) => MEAL_TYPE_LABELS[t]).join(" & ")}{" "}
+                    available
+                  </ThemedText>
+                </View>
+                <MaterialIcons
+                  name="chevron-right"
+                  size={24}
+                  color={colors.textMuted}
+                />
+              </View>
+            </Card>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 
-            {paymentMethod === "BANK" ? (
-              <Button
-                title={
-                  receiptUri ? "Receipt attached ✓" : "Upload bank receipt"
-                }
-                variant="outline"
-                onPress={pickReceipt}
-                style={styles.uploadBtn}
-              />
-            ) : null}
+  const renderMealStep = () => {
+    if (!selectedHall) return null;
+    return (
+      <View style={[styles.list, { gap: spacing.md }]}>
+        <Button
+          title="Change hall"
+          variant="ghost"
+          size="sm"
+          onPress={resetBookingWizard}
+          style={styles.backBtn}
+        />
+        <ThemedText type="small" themeColor="textMuted">
+          Hall: {formatHallLabel(selectedHall)}
+        </ThemedText>
+        {getMealTypesForHall(menus, selectedHall).map((mealType) => {
+          const menu = getMenuForHallAndMeal(menus, selectedHall, mealType);
+          if (!menu) return null;
+          const options = getBookingOptions(menu.id);
+          const isDinner = mealType === "DINNER";
+          const accent = isDinner ? colors.secondary : colors.primary;
+          const tint = `${accent}1A`;
+          const soldOut = menu.availableTokens <= 0;
+          const maxQty = Math.min(menu.availableTokens, 20);
+          const isBooking = bookingMenuId === menu.id;
 
-            <View style={styles.actions}>
-              <Button
-                title="Cancel"
-                variant="ghost"
-                style={styles.flex}
-                onPress={() => setBookingMenuId(null)}
-              />
-              <Button
-                title="Confirm Booking"
-                loading={submitting}
-                style={styles.flex}
-                onPress={() => handleBook(menu.id)}
-              />
-            </View>
-          </View>
-        ) : (
-          <Button
-            title={soldOut ? "Sold Out" : "Book Meal Token"}
-            disabled={soldOut}
-            onPress={() => openBooking(menu.id)}
-          />
-        )}
-      </Card>
+          return (
+            <Card key={mealType} style={styles.menuCard}>
+              <View style={styles.menuHead}>
+                <IconBadge
+                  name={isDinner ? "dinner-dining" : "lunch-dining"}
+                  color={accent}
+                  background={tint}
+                  size={44}
+                />
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="subtitle" style={{ fontSize: 16 }}>
+                    {MEAL_TYPE_LABELS[mealType]}
+                  </ThemedText>
+                  <ThemedText
+                    type="small"
+                    themeColor="textMuted"
+                    numberOfLines={2}
+                  >
+                    {menu.menuDescription}
+                  </ThemedText>
+                </View>
+                <View
+                  style={[
+                    styles.priceTag,
+                    { backgroundColor: tint, borderRadius: radius.full },
+                  ]}
+                >
+                  <ThemedText type="smallBold" style={{ color: accent }}>
+                    ৳{menu.price}
+                  </ThemedText>
+                </View>
+              </View>
+
+              <View style={styles.availRow}>
+                <ThemedText type="small" themeColor="textMuted">
+                  {soldOut
+                    ? "Sold out"
+                    : `${menu.availableTokens} of ${menu.totalTokens} tokens available`}
+                </ThemedText>
+              </View>
+
+              <View style={[styles.bookForm, { gap: spacing.sm }]}>
+                <ThemedText type="overline">Quantity</ThemedText>
+                <View style={styles.qtyRow}>
+                  <Button
+                    title="−"
+                    variant="outline"
+                    size="sm"
+                    style={styles.qtyBtn}
+                    onPress={() =>
+                      updateBookingOptions(menu.id, {
+                        quantity: Math.max(1, options.quantity - 1),
+                      })
+                    }
+                    disabled={options.quantity <= 1 || soldOut}
+                  />
+                  <ThemedText type="subtitle" style={{ paddingHorizontal: 12 }}>
+                    {options.quantity}
+                  </ThemedText>
+                  <Button
+                    title="+"
+                    variant="outline"
+                    size="sm"
+                    style={styles.qtyBtn}
+                    onPress={() =>
+                      updateBookingOptions(menu.id, {
+                        quantity: Math.min(maxQty, options.quantity + 1),
+                      })
+                    }
+                    disabled={options.quantity >= maxQty || soldOut}
+                  />
+                </View>
+
+                <ThemedText type="overline">Payment Method</ThemedText>
+                <View style={styles.chips}>
+                  {PAYMENT_METHODS.map((m) => (
+                    <Chip
+                      key={m}
+                      label={m}
+                      selected={options.paymentMethod === m}
+                      onPress={() =>
+                        updateBookingOptions(menu.id, {
+                          paymentMethod: m,
+                          receiptUri: null,
+                        })
+                      }
+                      color={accent}
+                    />
+                  ))}
+                </View>
+
+                {options.paymentMethod === "BANK" ? (
+                  <Button
+                    title={
+                      options.receiptUri
+                        ? "Receipt attached ✓"
+                        : "Upload bank receipt"
+                    }
+                    variant="outline"
+                    onPress={() => pickReceipt(menu.id)}
+                    style={styles.uploadBtn}
+                  />
+                ) : null}
+
+                <ThemedText type="smallBold" style={{ marginTop: 4 }}>
+                  Total: ৳{menu.price * options.quantity}
+                </ThemedText>
+
+                <Button
+                  title={soldOut ? "Sold Out" : "Pay & Book"}
+                  loading={isBooking}
+                  disabled={
+                    soldOut ||
+                    (options.paymentMethod === "BANK" && !options.receiptUri)
+                  }
+                  onPress={() => handleBook(menu.id)}
+                />
+              </View>
+            </Card>
+          );
+        })}
+      </View>
     );
   };
+
+  const renderBookingFlow = () => (
+    <View style={{ gap: spacing.md }}>
+      {renderStepIndicator()}
+      {bookingStep === "hall" ? renderHallStep() : renderMealStep()}
+    </View>
+  );
 
   return (
     <Screen
       title="Dining Panel"
-      subtitle="Book tomorrow's meal tokens"
+      subtitle="Choose hall, then pay and book lunch or dinner"
       loading={loading}
       onRefresh={onRefresh}
       refreshing={refreshing}
@@ -299,8 +458,8 @@ export default function DiningScreen() {
         </View>
       ) : null}
 
-      <SectionHeader title="Available Menus" />
-      {menus.lunch.length === 0 && menus.dinner.length === 0 ? (
+      <SectionHeader title="Book Meal Token" />
+      {hallsWithMenus.length === 0 ? (
         /* Centered empty state */
         <View
           style={[
@@ -329,10 +488,7 @@ export default function DiningScreen() {
           </ThemedText>
         </View>
       ) : (
-        <View style={[styles.list, { gap: spacing.md }]}>
-          {menus.lunch.map((m) => renderMenu(m, false))}
-          {menus.dinner.map((m) => renderMenu(m, true))}
-        </View>
+        renderBookingFlow()
       )}
 
       <SectionHeader title="Your Active Bookings" />
@@ -377,10 +533,10 @@ export default function DiningScreen() {
                 />
                 <View style={{ flex: 1 }}>
                   <ThemedText type="subtitle" style={{ fontSize: 15 }}>
-                    {t.mealType} · {t.mealDate}
+                    {formatHallLabel(t.hall)} · {t.mealType}
                   </ThemedText>
                   <ThemedText type="small" themeColor="textMuted">
-                    Quantity: {t.quantity} · Total: ৳{t.totalAmount}
+                    {t.mealDate} · Qty {t.quantity} · ৳{t.totalAmount}
                   </ThemedText>
                 </View>
                 <Button
@@ -466,5 +622,13 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
+  },
+  stepRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  backBtn: {
+    alignSelf: "flex-start",
   },
 });

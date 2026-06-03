@@ -17,6 +17,7 @@ import {
   useActiveMealTokensQuery,
   useTomorrowMenusQuery,
 } from '@/hooks/queries/dining';
+import { formatHallLabel } from '@/lib/dining-booking';
 import { refetchQueries, usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 function formatHall(hall: string | null) {
@@ -165,8 +166,8 @@ export default function DashboardScreen() {
               key={m.id}
               icon="lunch-dining"
               accent={colors.primary}
-              title={`Lunch · ${m.menuDescription}`}
-              subtitle={`${m.availableTokens} tokens left`}
+              title={`${formatHallLabel(m.hall)} · Lunch`}
+              subtitle={`${m.menuDescription} · ${m.availableTokens} tokens left`}
               trailingText={`৳${m.price}`}
             />
           ))}
@@ -175,8 +176,8 @@ export default function DashboardScreen() {
               key={m.id}
               icon="dinner-dining"
               accent={colors.secondary}
-              title={`Dinner · ${m.menuDescription}`}
-              subtitle={`${m.availableTokens} tokens left`}
+              title={`${formatHallLabel(m.hall)} · Dinner`}
+              subtitle={`${m.menuDescription} · ${m.availableTokens} tokens left`}
               trailingText={`৳${m.price}`}
             />
           ))}
@@ -201,8 +202,8 @@ export default function DashboardScreen() {
               key={t.id}
               icon="confirmation-number"
               accent={colors.primary}
-              title={`${t.mealType} · ${t.mealDate}`}
-              subtitle={`Quantity: ${t.quantity}`}
+              title={`${formatHallLabel(t.hall)} · ${t.mealType}`}
+              subtitle={`${t.mealDate} · Qty ${t.quantity}`}
               trailingText={`৳${t.totalAmount}`}
             />
           ))}

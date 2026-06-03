@@ -37,11 +37,25 @@ export async function getTomorrowMenus(options?: ApiFetchOptions) {
   };
 }
 
+function normalizeActiveTokensPayload(
+  payload: RawMealToken[] | { tokens?: RawMealToken[] } | null | undefined,
+): RawMealToken[] {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+  if (payload && typeof payload === 'object' && Array.isArray(payload.tokens)) {
+    return payload.tokens;
+  }
+  return [];
+}
+
 export async function getMyActiveTokens(options?: ApiFetchOptions) {
-  const { data: res } = await apiRequest<{ tokens: RawMealToken[] }>('/dining/my-active-tokens', {
+  const { data: res } = await apiRequest<
+    RawMealToken[] | { tokens?: RawMealToken[] }
+  >('/dining/my-active-tokens', {
     signal: options?.signal,
   });
-  return { tokens: (res.data?.tokens ?? []).map(mapMealToken) };
+  return { tokens: normalizeActiveTokensPayload(res.data).map(mapMealToken) };
 }
 
 export type BookMealTokensResult =
